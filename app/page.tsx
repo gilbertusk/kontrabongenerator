@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseEcountWorkbook, EcountRow, ParseResult } from "@/lib/parseEcount";
 import Intro from "./Intro";
+import Help from "./Help";
 
 type Currency = "IDR" | "USD";
 
@@ -259,6 +260,15 @@ export default function Page() {
           <img src="/logo-bal.png" alt="PT Berlian Artha Label" />
           Kontrabon Generator
         </span>
+        <Help
+          context={{
+            currency,
+            fileName,
+            totalRows: rowsForCustomer.length,
+            selectedRows: selectedRows.length,
+            lastError: errorMsg || parseError,
+          }}
+        />
         <span className="company">PT Berlian Artha Label</span>
       </header>
 

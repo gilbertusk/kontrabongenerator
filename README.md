@@ -19,6 +19,7 @@ Alur pakai:
 app/
   page.tsx                -> tampilan utama (upload, pilih invoice, form)
   Intro.tsx               -> layar pembuka logo BAL 3D
+  Help.tsx                -> asisten chat + lapor masalah ke WhatsApp
   layout.tsx              -> layout dasar + font IBM Plex Sans/Mono
   globals.css             -> seluruh styling aplikasi
   api/generate/route.ts   -> endpoint yang generate file .xlsx (server-side)
@@ -26,6 +27,7 @@ public/
   logo-bal.png            -> logo perusahaan (dipakai di layar pembuka & kop)
 lib/
   parseEcount.ts          -> baca & petakan kolom file export ECOUNT
+  helpTopics.ts           -> isi jawaban asisten + pencocokan ketikan bebas
   buildKontrabon.ts       -> isi template kontrabon dengan data invoice
   terbilang.ts            -> konversi nominal ke terbilang (Rupiah & USD)
   template/
@@ -96,6 +98,55 @@ diputar perlahan. Tidak memakai library 3D apa pun — hanya CSS.
 - Otomatis jadi fade biasa kalau OS diset "kurangi animasi".
 - Kalau ingin selalu muncul tiap buka halaman: hapus pemakaian
   `SESSION_KEY` di `app/Intro.tsx` dan skrip kecil di `app/layout.tsx`.
+
+## Asisten Kontrabon (chatbot bantuan)
+
+Tombol **Bantuan** di kanan atas membuka laci percakapan. Bentuknya chat:
+bot menyapa, user bisa menekan pilihan cepat atau mengetik pertanyaan bebas,
+lalu jawabannya muncul sebagai gelembung satu per satu.
+
+Ini **bukan chatbot AI**. Jawabannya sudah disiapkan di `lib/helpTopics.ts`,
+jadi gratis, instan, tidak butuh API key, dan tidak bisa mati karena layanan
+luar bermasalah. Kalau ada pertanyaan baru yang sering muncul, cukup tambah
+satu entri di file itu -- tampilannya tidak perlu disentuh.
+
+### Bagaimana ketikan bebas dicocokkan
+
+`findTopics()` di `lib/helpTopics.ts` memberi skor tiap topik: judul dan kata
+kunci berbobot lebih besar daripada isi jawaban. Dua pengaman supaya tidak
+asal jawab:
+
+- **Kata umum diabaikan** (`STOPWORDS`): tanpa ini, "bagaimana cuaca besok"
+  akan dijawab soal urutan invoice hanya karena kata "bagaimana" ada di salah
+  satu judul.
+- **Ambang keyakinan** (`CONFIDENT_SCORE`): topik hanya dijawab langsung
+  kalau skornya cukup tinggi. Kalau ragu, bot menawarkan beberapa pilihan;
+  kalau tidak ada yang cocok sama sekali, bot mengaku tidak tahu dan
+  menawarkan lapor ke WhatsApp.
+
+Perilakunya sudah diuji: pertanyaan di luar topik dijawab "tidak tahu",
+pertanyaan spesifik dijawab topik yang benar, dan satu kata ambigu seperti
+"invoice" ditawarkan pilihan, bukan dijawab asal.
+
+### Lapor masalah lewat WhatsApp
+
+Pilih **Lapor masalah ke WhatsApp**, bot minta ceritanya, lalu menyusun pesan
+yang sudah berisi data teknis: waktu, mata uang yang dipakai, nama file
+ECOUNT, berapa invoice tercentang, pesan error terakhir, jenis browser, dan
+ukuran layar.
+
+Pesan lengkapnya **ditampilkan dulu di dalam percakapan** sebelum dikirim, dan
+**nama customer serta nilai rupiah/dollar sengaja tidak disertakan** -- itu
+data bisnis yang tidak perlu keluar hanya untuk melaporkan bug.
+
+Tombolnya membuka WhatsApp dengan pesan sudah terisi; user yang menekan
+kirim. Tidak ada pengiriman otomatis, jadi tidak perlu WhatsApp Business API
+dan tidak ada biaya. Konsekuensinya: kalau user menutup WhatsApp tanpa
+menekan kirim, laporannya tidak sampai.
+
+Nomor tujuannya diatur lewat environment variable `NEXT_PUBLIC_WA_NUMBER`
+(lihat `.env.example`). Di Vercel diisi lewat *Project Settings -> Environment
+Variables*, jadi ganti nomor tidak perlu ubah kode.
 
 ## Bagaimana file kontrabon dibuat
 
