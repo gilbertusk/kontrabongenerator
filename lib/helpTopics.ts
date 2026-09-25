@@ -21,8 +21,19 @@ export const HELP_TOPICS: HelpTopic[] = [
       'File hasil export ECOUNT berjudul "Sales List", format .xlsx.',
       "Ambil dari ECOUNT seperti biasa, lalu drag file-nya ke kotak di kiri atas, atau klik kotak itu untuk memilih file.",
       "Tidak perlu dirapikan dulu. Website ini mencari sendiri baris judul kolomnya, dan mengabaikan baris nama perusahaan di atas maupun baris jam cetak di bawah.",
+      'Dua bentuk export ECOUNT sama-sama diterima: yang memakai kolom "Invoice", maupun yang lebih baru dengan kolom "Receivable No.", "No. SJ", "Progress Status", dan "No. Kontra Bon".',
     ],
-    keywords: ["upload", "ecount", "excel", "xlsx", "sales list", "tarikan"],
+    keywords: [
+      "upload",
+      "ecount",
+      "excel",
+      "xlsx",
+      "sales list",
+      "tarikan",
+      "format baru",
+      "receivable",
+      "no. sj",
+    ],
   },
   {
     id: "mata-uang",
@@ -45,6 +56,33 @@ export const HELP_TOPICS: HelpTopic[] = [
     keywords: ["redup", "abu", "disabled", "usd kosong", "gabisa", "tidak aktif"],
   },
   {
+    id: "sudah-kontrabon",
+    question: 'Kenapa ada invoice yang tidak dicentang otomatis?',
+    answer: [
+      'Kalau file ECOUNT-nya punya kolom "No. Kontra Bon", invoice yang nomornya sudah terisi berarti sudah pernah masuk kontrabon lain. Barisnya tetap ditampilkan, tapi tidak dicentang otomatis supaya tidak tertagih dua kali.',
+      'Nomor kontrabon lamanya bisa dilihat di kolom "No. Kontrabon" paling kanan, dan statusnya di kolom "Status".',
+      'Kalau memang perlu ditagih ulang, centang saja barisnya secara manual. Tombol "Pilih semua" juga ikut mencentang baris seperti ini, sedangkan "Pilih yang belum ditagih" hanya yang belum pernah masuk kontrabon.',
+    ],
+    keywords: [
+      "kontra bon",
+      "sudah ditagih",
+      "dobel",
+      "tidak dicentang",
+      "status",
+      "progress status",
+    ],
+  },
+  {
+    id: "penanda-sj",
+    question: 'Ada label "SJ" kecil di sebelah nomor invoice, itu apa?',
+    answer: [
+      'Artinya baris itu belum punya nomor faktur ("Receivable No." di ECOUNT masih kosong), jadi yang dipakai adalah nomor surat jalannya ("No. SJ").',
+      "Biasanya ini SJ yang statusnya masih Confirmed dan belum dibuat fakturnya. Barisnya tetap bisa ditagih, tapi periksa dulu apakah memang sudah boleh masuk kontrabon.",
+      "Di file hasilnya, nomor yang tercetak di kolom INVOICE adalah nomor tersebut.",
+    ],
+    keywords: ["sj", "surat jalan", "receivable", "label", "badge", "faktur"],
+  },
+  {
     id: "tombol-mati",
     question: "Tombol Generate-nya mati / tidak bisa diklik",
     answer: [
@@ -59,7 +97,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     question: "File saya tidak terbaca / tidak ada invoice yang muncul",
     answer: [
       'Pastikan yang di-upload benar-benar export ECOUNT "Sales List", bukan jenis laporan lain dan bukan file kontrabon yang sudah jadi.',
-      'Baris judul kolomnya minimal harus punya "Invoice", "Date", dan "Total Amount".',
+      'Baris judul kolomnya minimal harus punya "Date", "Total Amount", dan salah satu dari "Invoice" / "Receivable No." / "No. SJ".',
       "Kalau ECOUNT-nya baru berganti nama kolom, website ini perlu disesuaikan. Laporkan lewat tombol WhatsApp di bawah, sertakan file ECOUNT-nya.",
     ],
     keywords: ["kosong", "error", "gagal baca", "tidak terbaca", "header"],

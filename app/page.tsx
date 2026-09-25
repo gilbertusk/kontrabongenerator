@@ -86,6 +86,11 @@ export default function Page() {
     [parseResult]
   );
 
+  /** Kolom "Progress Status" / "No. Kontra Bon" hanya ada di export format baru. */
+  const showStatusColumn = parseResult?.available.progressStatus ?? false;
+  const showKontrabonColumn =
+    parseResult?.available.existingKontrabonNo ?? false;
+
   /** Invoice tanpa nilai USD tidak bisa masuk kontrabon USD. */
   function isSelectable(row: EcountRow): boolean {
     if (currency !== "USD") return true;
@@ -94,10 +99,18 @@ export default function Page() {
 
   const selectableRows = rowsForCustomer.filter(isSelectable);
 
-  // Saat customer / mata uang dipilih (atau file baru diparse), default-nya
-  // semua invoice yang memang bisa dipakai untuk mata uang itu tercentang.
+  /**
+   * Baris yang dicentang otomatis saat file dibuka: yang bisa dipakai untuk
+   * mata uang ini DAN belum pernah masuk kontrabon lain. Baris yang sudah
+   * punya No. Kontra Bon tetap tampil dan tetap bisa dicentang manual.
+   */
+  const autoSelectableRows = selectableRows.filter((r) => !r.alreadyBilled);
+
+  /** Baris yang tampil tapi sengaja tidak dicentang karena sudah ditagih. */
+  const billedRows = selectableRows.filter((r) => r.alreadyBilled);
+
   useEffect(() => {
-    setSelectedIds(new Set(selectableRows.map((r) => r.id)));
+    setSelectedIds(new Set(autoSelectableRows.map((r) => r.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomer, parseResult, currency]);
 
@@ -441,12 +454,33 @@ export default function Page() {
             </p>
           )}
 
+          {billedRows.length > 0 && (
+            <p className="notice">
+              <b>{billedRows.length} invoice</b> sudah punya No. Kontra Bon di
+              file ECOUNT, jadi tidak dicentang otomatis supaya tidak tertagih
+              dua kali. Centang manual kalau memang perlu ditagih ulang.
+            </p>
+          )}
+
           <div className="content-head">
             <h1>
               Invoice
               <span className="tag mono">[SET_CURRENCY : {currency}]</span>
             </h1>
             <div className="head-actions">
+              {billedRows.length > 0 && (
+                <button
+                  className="linkbtn"
+                  onClick={() =>
+                    setSelectedIds(
+                      new Set(autoSelectableRows.map((r) => r.id))
+                    )
+                  }
+                  disabled={!hasRows}
+                >
+                  Pilih yang belum ditagih
+                </button>
+              )}
               <button
                 className="linkbtn strong"
                 onClick={() =>
@@ -485,7 +519,7 @@ export default function Page() {
                         aria-label="Pilih semua invoice"
                       />
                     </th>
-                    <th>Invoice</th>
+                    <th>{parseResult?.available.sjNo ? "Invoice / No. SJ" : "Invoice"}</th>
                     <th>Tanggal</th>
                     <th
                       className={`num${currency === "IDR" ? " active" : ""}`}
@@ -501,13 +535,21 @@ export default function Page() {
                     )}
                     <th>No. PO</th>
                     <th>Keterangan</th>
+                    {showStatusColumn && <th>Status</th>}
+                    {showKontrabonColumn && <th>No. Kontrabon</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {rowsForCustomer.map((r) => {
                     const selectable = isSelectable(r);
+                    const cls = [
+                      selectable ? "" : "off",
+                      r.alreadyBilled ? "billed" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
                     return (
-                      <tr key={r.id} className={selectable ? "" : "off"}>
+                      <tr key={r.id} className={cls}>
                         <td className="cb">
                           <input
                             type="checkbox"
@@ -517,7 +559,17 @@ export default function Page() {
                             aria-label={`Pilih invoice ${r.invoiceNo}`}
                           />
                         </td>
-                        <td className="mono">{r.invoiceNo}</td>
+                        <td className="mono">
+                          {r.invoiceNo}
+                          {r.invoiceNoSource === "sj" && (
+                            <span
+                              className="badge"
+                              title="Belum ada Receivable No. di ECOUNT, jadi yang dipakai nomor surat jalan"
+                            >
+                              SJ
+                            </span>
+                          )}
+                        </td>
                         <td className="mono">{r.dateStr}</td>
                         <td
                           className={`num mono${
@@ -539,6 +591,16 @@ export default function Page() {
                         )}
                         <td className="mono">{r.poCustomer}</td>
                         <td className="desc">{r.flightNumber}</td>
+                        {showStatusColumn && (
+                          <td className="status-col">
+                            {r.progressStatus || "-"}
+                          </td>
+                        )}
+                        {showKontrabonColumn && (
+                          <td className="mono">
+                            {r.existingKontrabonNo || "-"}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
