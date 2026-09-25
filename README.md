@@ -238,23 +238,49 @@ File export ECOUNT ("Sales List") dipetakan ke kolom kontrabon seperti ini:
 
 | Kolom ECOUNT                  | Kolom Kontrabon      |
 | ------------------------------ | --------------------- |
-| Invoice                        | INVOICE                |
+| Invoice / Receivable No.       | INVOICE                |
+| No. SJ                          | INVOICE (pengganti, bila Receivable No. kosong) |
 | Date                            | TANGGAL                |
 | Total Amount                    | Jumlah (template Rupiah) |
 | Total Foreign Currency Amount   | JUMLAH (template USD)  |
 | No. PO Customer                 | NO. PO                 |
 | Flight Number                   | Keterangan              |
 | CUST.                           | Kepada / nama customer |
+| Progress Status                 | tidak dicetak, hanya tampil di tabel |
+| No. Kontra Bon                  | tidak dicetak, dipakai untuk menandai invoice yang sudah ditagih |
 
 Kedua nilai (Rupiah & USD) selalu ditulis ke file hasil; yang tidak
 sesuai mata uang yang dipilih masuk ke kolom yang disembunyikan, persis
 seperti dokumen aslinya. Kolom "Number" dari ECOUNT tidak dipakai.
-Parser di
-`lib/parseEcount.ts` mendeteksi baris header secara otomatis (mencari
-kolom "Invoice", "Date", "Total Amount"), jadi cukup tahan kalau ada
+
+### Dua bentuk export ECOUNT yang didukung
+
+| | Kolom |
+| --- | --- |
+| Bentuk lama (8 kolom) | Number, **Invoice**, Date, Total Amount, Total Foreign Currency Amount, No. PO Customer, Flight Number, CUST. |
+| Bentuk baru (11 kolom) | Number, **Receivable No.**, **No. SJ**, Date, Total Amount, Total Foreign Currency Amount, No. PO Customer, Flight Number, CUST., **Progress Status**, **No. Kontra Bon** |
+
+Di bentuk baru, kolom `Invoice` tidak ada lagi. Nomor yang dipakai di
+kolom INVOICE kontrabon diambil dari `Receivable No.`; kalau kosong
+(SJ yang belum jadi faktur, biasanya berstatus `Confirmed`), dipakai
+`No. SJ` dan barisnya diberi label kecil "SJ" di tabel. Di data contoh,
+kedua kolom itu isinya identik untuk hampir semua baris.
+
+`No. Kontra Bon` yang sudah terisi (atau `Progress Status` bernilai
+`KONTRA BON`) berarti invoice itu sudah pernah masuk kontrabon lain.
+Baris seperti itu tetap tampil dengan latar berbeda, tapi **tidak
+dicentang otomatis** supaya tidak tertagih dua kali -- lihat
+`alreadyBilled` di `EcountRow`. Masih bisa dicentang manual, dan tombol
+"Pilih yang belum ditagih" mengembalikan centang ke kondisi default.
+
+Parser di `lib/parseEcount.ts` mendeteksi baris header secara otomatis
+(mencari kolom "Date", "Total Amount", dan salah satu dari
+"Invoice" / "Receivable No." / "No. SJ"), jadi cukup tahan kalau ada
 sedikit perbedaan format export ECOUNT. Kalau suatu saat ECOUNT
 mengganti nama kolom dan parser gagal mendeteksi, tambahkan alias nama
-kolom itu di `HEADER_ALIASES` pada file yang sama.
+kolom itu di `HEADER_ALIASES` pada file yang sama. `ParseResult.available`
+memberi tahu kolom opsional mana yang benar-benar ada di file, dipakai UI
+untuk memutuskan kolom "Status" dan "No. Kontrabon" ditampilkan atau tidak.
 
 ## Catatan tentang terbilang
 

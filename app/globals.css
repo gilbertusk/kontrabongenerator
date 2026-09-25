@@ -493,6 +493,35 @@ table.invoices .desc {
   text-overflow: ellipsis;
 }
 
+/* Baris yang sudah punya No. Kontra Bon di file ECOUNT: tetap terbaca, tapi
+   jelas berbeda supaya tidak ikut tertagih tanpa sadar. */
+table.invoices tbody tr.billed {
+  background: #fdfaf6;
+  color: var(--muted);
+}
+
+table.invoices .status-col {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Penanda kecil di sebelah nomor dokumen, mis. "SJ" untuk baris yang belum
+   punya nomor faktur. */
+.badge {
+  margin-left: 6px;
+  padding: 1px 4px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  vertical-align: 1px;
+}
+
 .placeholder {
   flex: 1;
   display: flex;
