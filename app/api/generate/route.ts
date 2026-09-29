@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildKontrabonFile,
-  invoicesWithoutUsdAmount,
   Currency,
   KontrabonRowInput,
 } from "@/lib/buildKontrabon";
@@ -59,28 +58,8 @@ export async function POST(req: NextRequest) {
 
   const currency: Currency = body.currency === "USD" ? "USD" : "IDR";
 
-  // Kontrabon USD memakai kolom "Total Foreign Currency Amount" dari ECOUNT.
-  // Invoice yang kolom itu kosong hampir pasti invoice Rupiah yang salah pilih,
-  // jadi lebih baik ditolak dengan pesan jelas daripada dicetak sebagai 0.
-  if (currency === "USD") {
-    const invalid = invoicesWithoutUsdAmount(body.rows);
-    if (invalid.length > 0) {
-      const sample = invalid
-        .slice(0, 5)
-        .map((r) => r.invoiceNo)
-        .join(", ");
-      const more = invalid.length > 5 ? `, dan ${invalid.length - 5} lainnya` : "";
-      return NextResponse.json(
-        {
-          error:
-            `${invalid.length} invoice tidak punya nilai USD ` +
-            `(kolom "Total Foreign Currency Amount" kosong di file ECOUNT): ` +
-            `${sample}${more}. Hilangkan centangnya, atau pilih mata uang Rupiah.`,
-        },
-        { status: 400 }
-      );
-    }
-  }
+  // Kontrabon USD: invoice tanpa nilai USD boleh ikut kalau user sengaja
+  // mencentangnya; kolom JUMLAH ($)-nya ditulis 0 (lihat buildDataRows).
 
   const tanggal = body.tanggal ? parseDocumentDate(body.tanggal) : new Date();
   if (isNaN(tanggal.getTime())) {

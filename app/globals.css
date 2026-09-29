@@ -479,12 +479,10 @@ table.invoices tbody tr:hover:not(.off) {
   background: #fbfaf8;
 }
 
+/* Kontrabon USD: invoice tanpa nilai USD yang belum dipilih. Diredupkan
+   saja; checkbox-nya tetap aktif supaya bisa dicentang manual. */
 table.invoices tbody tr.off {
   color: var(--faint);
-}
-
-table.invoices tbody tr.off input[type="checkbox"] {
-  cursor: default;
 }
 
 table.invoices .desc {

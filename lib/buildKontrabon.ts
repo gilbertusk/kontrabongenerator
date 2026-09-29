@@ -175,13 +175,6 @@ export function rowAmount(row: KontrabonRowInput, currency: Currency): number {
   return row.amount || 0;
 }
 
-/** Invoice yang tidak punya nilai valas -> tidak bisa masuk kontrabon USD. */
-export function invoicesWithoutUsdAmount(
-  rows: KontrabonRowInput[]
-): KontrabonRowInput[] {
-  return rows.filter((r) => r.foreignAmount == null || r.foreignAmount === 0);
-}
-
 function templatePath(spec: TemplateSpec): string {
   return path.join(process.cwd(), "lib", "template", spec.file);
 }
@@ -256,10 +249,20 @@ function numberCell(
   return `<c r="${ref}" s="${style}"><v>${value}</v></c>`;
 }
 
+/**
+ * Kolom F (valas). Di kontrabon USD, invoice tanpa nilai USD yang sengaja
+ * dicentang user ditulis 0 supaya barisnya tidak tampak datanya hilang.
+ */
+function usdCellValue(row: KontrabonRowInput, currency: Currency): number | null {
+  if (currency === "USD") return row.foreignAmount ?? 0;
+  return row.foreignAmount ?? null;
+}
+
 function buildDataRows(
   rows: KontrabonRowInput[],
   customer: string,
-  spec: TemplateSpec
+  spec: TemplateSpec,
+  currency: Currency
 ): string {
   return rows
     .map((row, i) => {
@@ -270,7 +273,7 @@ function buildDataRows(
         textCell(`C${r}`, spec.style.invoice, row.invoiceNo) +
         textCell(`D${r}`, spec.style.tanggal, row.dateStr) +
         numberCell(`E${r}`, spec.style.jumlahIdr, row.amount || 0) +
-        numberCell(`F${r}`, spec.style.jumlahUsd, row.foreignAmount ?? null) +
+        numberCell(`F${r}`, spec.style.jumlahUsd, usdCellValue(row, currency)) +
         textCell(`G${r}`, spec.style.po, row.poCustomer) +
         textCell(`H${r}`, spec.style.keterangan, row.flightNumber) +
         textCell(`I${r}`, spec.style.customer, row.customer || customer) +
@@ -403,7 +406,7 @@ export async function buildKontrabonFile(
 
   sheetXml = sheetXml.replace(
     "</sheetData>",
-    buildDataRows(rows, input.customer, spec) +
+    buildDataRows(rows, input.customer, spec, currency) +
       buildWarningRows(warningRow, styles.headingStyle, styles.bodyStyle) +
       "</sheetData>"
   );

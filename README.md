@@ -177,9 +177,10 @@ Beda isi kedua template (mengikuti dokumen aslinya):
   "... U.S Dollar dan ... Cents", blok rekening pakai rekening USD
   (8650890885) + baris **Swift Code : CENAIDJA** + **Mata Uang : USD**.
 
-Invoice yang kolom `Total Foreign Currency Amount`-nya kosong otomatis
-tidak bisa dicentang saat mode USD (ditampilkan redup + ada peringatan),
-supaya tidak ada invoice Rupiah yang nyasar ke kontrabon USD.
+Invoice yang kolom `Total Foreign Currency Amount`-nya kosong tidak
+dicentang otomatis saat mode USD (ditampilkan redup + ada peringatan),
+supaya tidak ada invoice Rupiah yang nyasar tanpa sengaja. Kalau memang
+perlu ikut, invoice itu bisa dicentang manual; kolom JUMLAH ($)-nya ditulis 0.
 
 Sel yang diisi otomatis oleh website:
 

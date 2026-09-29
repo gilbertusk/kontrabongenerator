@@ -47,13 +47,13 @@ export const HELP_TOPICS: HelpTopic[] = [
   },
   {
     id: "tidak-bisa-dicentang",
-    question: "Kenapa ada invoice yang tidak bisa dicentang?",
+    question: "Kenapa ada invoice yang redup dan tidak tercentang?",
     answer: [
       "Itu terjadi saat mata uang dipilih Dollar (USD), dan invoice tersebut tidak punya nilai USD di file ECOUNT (kolom Total Foreign Currency Amount-nya kosong).",
-      "Invoice seperti itu adalah invoice Rupiah, jadi tidak bisa ikut ke kontrabon USD. Barisnya sengaja diredupkan supaya kelihatan, bukan disembunyikan.",
-      "Kalau invoice itu memang harus ikut, berarti mata uangnya yang salah pilih - ganti ke Rupiah (Rp).",
+      "Invoice seperti itu sengaja tidak dicentang otomatis, tapi tetap bisa dicentang manual kalau memang perlu ikut ke kontrabon USD. Kolom JUMLAH ($)-nya di Excel akan ditulis 0.",
+      'Tombol "Pilih semua" ikut mencentang invoice tanpa nilai USD. Untuk kembali ke pilihan awal, pakai tombol "Pilih yang punya nilai USD" / "Pilih yang disarankan".',
     ],
-    keywords: ["redup", "abu", "disabled", "usd kosong", "gabisa", "tidak aktif"],
+    keywords: ["redup", "abu", "disabled", "usd kosong", "gabisa", "tidak aktif", "tidak bisa dicentang", "nilai usd"],
   },
   {
     id: "sudah-kontrabon",

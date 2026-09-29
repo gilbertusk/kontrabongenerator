@@ -120,23 +120,33 @@ export default function Page() {
   const showKontrabonColumn =
     parseResult?.available.existingKontrabonNo ?? false;
 
-  /** Invoice tanpa nilai USD tidak bisa masuk kontrabon USD. */
-  function isSelectable(row: EcountRow): boolean {
-    if (currency !== "USD") return true;
-    return row.foreignAmount != null && row.foreignAmount !== 0;
+  /**
+   * Kontrabon USD: invoice yang kolom "Total Foreign Currency Amount"-nya
+   * kosong/0. Tetap boleh dicentang manual (nilai $-nya ditulis 0), tapi
+   * tidak ikut dicentang otomatis.
+   */
+  function lacksUsdAmount(row: EcountRow): boolean {
+    if (currency !== "USD") return false;
+    return row.foreignAmount == null || row.foreignAmount === 0;
   }
 
-  const selectableRows = rowsForCustomer.filter(isSelectable);
+  /** Semua invoice bisa dipilih; yang "bermasalah" hanya tidak dipilih otomatis. */
+  const selectableRows = rowsForCustomer;
 
   /**
-   * Baris yang dicentang otomatis saat file dibuka: yang bisa dipakai untuk
-   * mata uang ini DAN belum pernah masuk kontrabon lain. Baris yang sudah
-   * punya No. Kontra Bon tetap tampil dan tetap bisa dicentang manual.
+   * Baris yang dicentang otomatis saat file dibuka: belum pernah masuk
+   * kontrabon lain DAN (untuk USD) punya nilai USD. Sisanya tetap tampil dan
+   * tetap bisa dicentang manual.
    */
-  const autoSelectableRows = selectableRows.filter((r) => !r.alreadyBilled);
+  const autoSelectableRows = selectableRows.filter(
+    (r) => !r.alreadyBilled && !lacksUsdAmount(r)
+  );
 
   /** Baris yang tampil tapi sengaja tidak dicentang karena sudah ditagih. */
   const billedRows = selectableRows.filter((r) => r.alreadyBilled);
+
+  /** Kontrabon USD: baris tanpa nilai USD (tidak dicentang otomatis). */
+  const noUsdRows = selectableRows.filter(lacksUsdAmount);
 
   /** Pilih `rows` di kedua mode sekaligus: dicentang & dinomori 1..n. */
   function selectRows(rows: EcountRow[]) {
@@ -236,7 +246,7 @@ export default function Page() {
     (s, r) => s + (amountOf(r, currency) || 0),
     0
   );
-  const skippedForUsd = rowsForCustomer.length - selectableRows.length;
+  const selectedNoUsd = selectedRows.filter(lacksUsdAmount).length;
   const hasRows = rowsForCustomer.length > 0;
 
   /** Syarat yang belum terpenuhi untuk generate; kosong berarti sudah siap. */
@@ -541,10 +551,17 @@ export default function Page() {
         </aside>
 
         <main className="content">
-          {currency === "USD" && skippedForUsd > 0 && (
+          {noUsdRows.length > 0 && (
             <p className="notice">
-              <b>{skippedForUsd} invoice</b> tidak punya nilai USD dan tidak
-              bisa dicentang.
+              <b>{noUsdRows.length} invoice</b> tidak punya nilai USD, jadi
+              tidak dicentang otomatis. Centang manual kalau memang perlu ikut;
+              kolom JUMLAH ($)-nya akan ditulis 0.
+              {selectedNoUsd > 0 && (
+                <>
+                  {" "}
+                  Saat ini <b>{selectedNoUsd}</b> di antaranya ikut dicentang.
+                </>
+              )}
             </p>
           )}
 
@@ -562,13 +579,17 @@ export default function Page() {
               <span className="tag mono">[SET_CURRENCY : {currency}]</span>
             </h1>
             <div className="head-actions">
-              {billedRows.length > 0 && (
+              {(billedRows.length > 0 || noUsdRows.length > 0) && (
                 <button
                   className="linkbtn"
                   onClick={() => selectRows(autoSelectableRows)}
                   disabled={!hasRows}
                 >
-                  Pilih yang belum ditagih
+                  {noUsdRows.length === 0
+                    ? "Pilih yang belum ditagih"
+                    : billedRows.length === 0
+                    ? "Pilih yang punya nilai USD"
+                    : "Pilih yang disarankan"}
                 </button>
               )}
               <button
@@ -576,7 +597,7 @@ export default function Page() {
                 onClick={() => selectRows(selectableRows)}
                 disabled={!hasRows || allSelected}
               >
-                Pilih semua{skippedForUsd > 0 ? " valid" : ""}
+                Pilih semua
               </button>
               <button
                 className="linkbtn"
@@ -630,14 +651,15 @@ export default function Page() {
                 </thead>
                 <tbody>
                   {rowsForCustomer.map((r, i) => {
-                    const selectable = isSelectable(r);
+                    const noUsd = lacksUsdAmount(r);
                     const key = poKey(r.poCustomer);
                     const group = poGroups.get(key);
                     const inGroup = group !== undefined;
                     const prevKey = poKey(rowsForCustomer[i - 1]?.poCustomer ?? "");
                     const nextKey = poKey(rowsForCustomer[i + 1]?.poCustomer ?? "");
                     const cls = [
-                      selectable ? "" : "off",
+                      // tanpa nilai USD: redup selama belum dipilih
+                      noUsd && !exportNo.has(r.id) ? "off" : "",
                       r.alreadyBilled ? "billed" : "",
                       inGroup ? `po-group po-group-${group % 2}` : "",
                       inGroup && prevKey !== key ? "po-first" : "",
@@ -646,7 +668,15 @@ export default function Page() {
                       .filter(Boolean)
                       .join(" ");
                     return (
-                      <tr key={r.id} className={cls}>
+                      <tr
+                        key={r.id}
+                        className={cls}
+                        title={
+                          noUsd
+                            ? "Tidak punya nilai USD; kalau dicentang, JUMLAH ($) ditulis 0"
+                            : undefined
+                        }
+                      >
                         {orderMode === "manual" ? (
                           <td className="order">
                             <input
@@ -658,7 +688,6 @@ export default function Page() {
                                   : ""
                               }`}
                               value={manualNo[r.id] ?? ""}
-                              disabled={!selectable}
                               onChange={(e) =>
                                 setRowNumber(r.id, e.target.value)
                               }
@@ -670,7 +699,6 @@ export default function Page() {
                             <input
                               type="checkbox"
                               checked={selectedIds.has(r.id)}
-                              disabled={!selectable}
                               onChange={() => toggleRow(r.id)}
                               aria-label={`Pilih invoice ${r.invoiceNo}`}
                             />
