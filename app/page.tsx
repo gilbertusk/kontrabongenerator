@@ -212,7 +212,9 @@ export default function Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kontrabonNo: kontrabonNo.trim(),
-          tanggal: new Date(`${tanggal}T00:00:00`).toISOString(),
+          // kirim "YYYY-MM-DD" apa adanya: toISOString() menggeser ke UTC
+          // sehingga di WIB tanggalnya mundur satu hari di server.
+          tanggal,
           kembaliTanggal: kembaliTanggal
             ? toDocumentDate(kembaliTanggal)
             : undefined,

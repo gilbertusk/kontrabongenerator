@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 interface GenerateBody {
   kontrabonNo: string;
-  tanggal: string; // ISO date string
+  tanggal: string; // "YYYY-MM-DD" dari input date
   kembaliTanggal?: string;
   customer: string;
   currency?: string;
@@ -20,6 +20,18 @@ interface GenerateBody {
 /** Buang karakter yang tidak boleh ada di nama file, spasi tetap dipertahankan. */
 function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(0, 150);
+}
+
+/**
+ * "YYYY-MM-DD" -> Date tengah malam waktu lokal server, tanpa konversi zona
+ * waktu, supaya tanggal di Excel sama persis dengan yang dipilih di web.
+ */
+function parseDocumentDate(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return new Date(NaN);
+  const [, yyyy, mm, dd] = m;
+  const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  return date.getDate() === Number(dd) ? date : new Date(NaN);
 }
 
 export async function POST(req: NextRequest) {
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const tanggal = body.tanggal ? new Date(body.tanggal) : new Date();
+  const tanggal = body.tanggal ? parseDocumentDate(body.tanggal) : new Date();
   if (isNaN(tanggal.getTime())) {
     return NextResponse.json({ error: "Tanggal tidak valid." }, { status: 400 });
   }
