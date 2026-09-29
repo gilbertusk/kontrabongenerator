@@ -500,6 +500,84 @@ table.invoices tbody tr.billed {
   color: var(--muted);
 }
 
+/* Mode urutan manual: kotak nomor menggantikan checkbox. */
+table.invoices .order {
+  width: 52px;
+  padding-left: 4px;
+}
+
+table.invoices input.order-input {
+  width: 40px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  background: var(--surface);
+  font-size: 12px;
+  text-align: center;
+}
+
+table.invoices input.order-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+table.invoices input.order-input.dup {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+table.invoices input.order-input:disabled {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* Nomor urut invoice di file Excel; kosong untuk baris yang tidak dicentang. */
+table.invoices .no {
+  width: 34px;
+  text-align: right;
+  color: var(--muted);
+}
+
+/* Invoice ber-No. PO sama: satu blok berwarna dengan garis kiri, dua warna
+   selang-seling supaya blok yang bersebelahan tetap bisa dibedakan. */
+table.invoices tbody tr.po-group-0 {
+  --po-bg: var(--amber-bg);
+  --po-line: var(--amber);
+}
+
+table.invoices tbody tr.po-group-1 {
+  --po-bg: #eef3f7;
+  --po-line: #4f7392;
+}
+
+table.invoices tbody tr.po-group,
+table.invoices tbody tr.po-group:hover:not(.off) {
+  background: var(--po-bg);
+}
+
+table.invoices tbody tr.po-group td:first-child {
+  box-shadow: inset 3px 0 0 var(--po-line);
+}
+
+table.invoices tbody tr.po-group:not(.po-last) td {
+  border-bottom-color: transparent;
+}
+
+table.invoices tbody tr.po-first td {
+  border-top: 1px solid var(--po-line);
+}
+
+table.invoices tbody tr.po-last td {
+  border-bottom: 1px solid var(--po-line);
+}
+
+.badge.po {
+  border-color: var(--po-line);
+  color: var(--po-line);
+}
+
 table.invoices .status-col {
   font-size: 10px;
   letter-spacing: 0.06em;

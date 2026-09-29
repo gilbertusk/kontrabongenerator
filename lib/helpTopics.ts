@@ -107,9 +107,11 @@ export const HELP_TOPICS: HelpTopic[] = [
     question: "Urutan invoice di file hasilnya bagaimana?",
     answer: [
       "Diurutkan otomatis berdasarkan tanggal, dari yang paling lama ke yang paling baru.",
-      "Urutan centang di layar tidak berpengaruh, jadi tidak perlu diatur manual.",
+      'Invoice dengan No. PO yang sama dikumpulkan jadi satu blok berurutan, ditaruh di posisi invoice PO itu yang paling lama. Di layar barisnya disorot dan diberi tanda "PO SAMA".',
+      'Kolom "No." di tabel menunjukkan nomor urut invoice itu di file Excel.',
+      'Mau atur sendiri? Pilih "Manual (nomor)" di bagian Urutan Invoice. Checklist berubah jadi kotak nomor: isi 1, 2, 3, ... sesuai urutan yang diinginkan. Invoice yang kotaknya dikosongkan tidak ikut di-export, dan nomor yang sama tidak boleh dipakai dua kali.',
     ],
-    keywords: ["urut", "sort", "tanggal", "nomor urut"],
+    keywords: ["urut", "sort", "tanggal", "nomor urut", "po", "po sama", "grup", "manual"],
   },
   {
     id: "nama-file",

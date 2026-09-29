@@ -2,10 +2,28 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseEcountWorkbook, EcountRow, ParseResult } from "@/lib/parseEcount";
+import {
+  orderRows,
+  duplicatePoGroups,
+  poKey,
+  orderManually,
+  numberRows,
+  duplicateManualNumbers,
+  ManualNumbers,
+} from "@/lib/orderRows";
 import Intro from "./Intro";
 import Help from "./Help";
 
 type Currency = "IDR" | "USD";
+
+/** Otomatis: urut tanggal + blok No. PO. Manual: user mengetik nomor urutnya. */
+type OrderMode = "auto" | "manual";
+
+const ORDER_HELP: Record<OrderMode, string> = {
+  auto: "Urut tanggal lama ke baru; No. PO sama dijadikan satu blok.",
+  manual:
+    "Ketik nomor urut di kolom kiri. Yang dikosongkan tidak ikut di-export.",
+};
 
 const CURRENCY_PREFIX: Record<Currency, string> = { IDR: "Rp", USD: "$" };
 
@@ -63,6 +81,8 @@ export default function Page() {
 
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [orderMode, setOrderMode] = useState<OrderMode>("auto");
+  const [manualNo, setManualNo] = useState<ManualNumbers>({});
 
   const [currency, setCurrency] = useState<Currency>("IDR");
   const [kontrabonNo, setKontrabonNo] = useState("");
@@ -76,9 +96,18 @@ export default function Page() {
 
   const rowsForCustomer: EcountRow[] = useMemo(() => {
     if (!parseResult) return [];
-    if (!selectedCustomer) return parseResult.rows;
-    return parseResult.rows.filter((r) => r.customer === selectedCustomer);
+    const rows = selectedCustomer
+      ? parseResult.rows.filter((r) => r.customer === selectedCustomer)
+      : parseResult.rows;
+    // urutan tampil = urutan di Excel: kronologis, No. PO sama jadi satu blok
+    return orderRows(rows);
   }, [parseResult, selectedCustomer]);
+
+  /** No. PO yang dipakai >1 invoice -> nomor grup, untuk menyorot barisnya. */
+  const poGroups = useMemo(
+    () => duplicatePoGroups(rowsForCustomer),
+    [rowsForCustomer]
+  );
 
   /** File ECOUNT ini punya kolom "Total Foreign Currency Amount" yang terisi? */
   const hasForeignAmount = useMemo(
@@ -109,8 +138,14 @@ export default function Page() {
   /** Baris yang tampil tapi sengaja tidak dicentang karena sudah ditagih. */
   const billedRows = selectableRows.filter((r) => r.alreadyBilled);
 
+  /** Pilih `rows` di kedua mode sekaligus: dicentang & dinomori 1..n. */
+  function selectRows(rows: EcountRow[]) {
+    setSelectedIds(new Set(rows.map((r) => r.id)));
+    setManualNo(numberRows(orderRows(rows)));
+  }
+
   useEffect(() => {
-    setSelectedIds(new Set(autoSelectableRows.map((r) => r.id)));
+    selectRows(autoSelectableRows);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomer, parseResult, currency]);
 
@@ -165,10 +200,38 @@ export default function Page() {
     });
   }
 
-  const allSelected =
-    selectableRows.length > 0 && selectedIds.size === selectableRows.length;
+  function setRowNumber(id: string, value: string) {
+    setManualNo((prev) => ({ ...prev, [id]: value.replace(/\D/g, "") }));
+  }
 
-  const selectedRows = rowsForCustomer.filter((r) => selectedIds.has(r.id));
+  /** Invoice yang ikut di-export, SUDAH dalam urutan final di file Excel. */
+  const selectedRows =
+    orderMode === "manual"
+      ? orderManually(selectableRows, manualNo)
+      : orderRows(rowsForCustomer.filter((r) => selectedIds.has(r.id)));
+
+  function changeOrderMode(mode: OrderMode) {
+    if (mode === orderMode) return;
+    // bawa pilihan & urutan saat ini ke mode berikutnya
+    setSelectedIds(new Set(selectedRows.map((r) => r.id)));
+    setManualNo(numberRows(selectedRows));
+    setOrderMode(mode);
+  }
+
+  const allSelected =
+    selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+
+  /** Nomor urut tiap invoice terpilih di file Excel (kolom "No."). */
+  const exportNo = new Map(selectedRows.map((r, i) => [r.id, i + 1] as const));
+
+  /** Mode manual: nomor yang diketik untuk lebih dari satu invoice. */
+  const duplicateNumbers =
+    orderMode === "manual"
+      ? duplicateManualNumbers(
+          selectableRows.map((r) => r.id),
+          manualNo
+        )
+      : new Set<number>();
   const totalSelected = selectedRows.reduce(
     (s, r) => s + (amountOf(r, currency) || 0),
     0
@@ -180,7 +243,13 @@ export default function Page() {
   const blocker = !hasRows
     ? "Belum ada file ECOUNT yang dibaca."
     : selectedRows.length === 0
-    ? "Belum ada invoice yang dicentang."
+    ? orderMode === "manual"
+      ? "Belum ada invoice yang diberi nomor urut."
+      : "Belum ada invoice yang dicentang."
+    : duplicateNumbers.size > 0
+    ? `Nomor urut ${[...duplicateNumbers]
+        .sort((a, b) => a - b)
+        .join(", ")} dipakai lebih dari satu invoice.`
     : !kontrabonNo.trim()
     ? "No. Kontrabon belum diisi."
     : !customerNameOverride.trim()
@@ -220,6 +289,8 @@ export default function Page() {
             : undefined,
           customer: customerNameOverride.trim(),
           currency,
+          // mode manual: server wajib memakai urutan kiriman apa adanya
+          keepOrder: orderMode === "manual",
           rows: selectedRows.map((r) => ({
             invoiceNo: r.invoiceNo,
             dateStr: r.dateStr,
@@ -357,6 +428,27 @@ export default function Page() {
 
           <section>
             <div className="block-head">
+              <h2 className="block-title">Urutan Invoice</h2>
+            </div>
+            <div className="segmented">
+              <button
+                className={orderMode === "auto" ? "on" : ""}
+                onClick={() => changeOrderMode("auto")}
+              >
+                Otomatis
+              </button>
+              <button
+                className={orderMode === "manual" ? "on" : ""}
+                onClick={() => changeOrderMode("manual")}
+              >
+                Manual (nomor)
+              </button>
+            </div>
+            <p className="helper">{ORDER_HELP[orderMode]}</p>
+          </section>
+
+          <section>
+            <div className="block-head">
               <h2 className="block-title">Detail Kontrabon</h2>
             </div>
             <div className="form">
@@ -473,11 +565,7 @@ export default function Page() {
               {billedRows.length > 0 && (
                 <button
                   className="linkbtn"
-                  onClick={() =>
-                    setSelectedIds(
-                      new Set(autoSelectableRows.map((r) => r.id))
-                    )
-                  }
+                  onClick={() => selectRows(autoSelectableRows)}
                   disabled={!hasRows}
                 >
                   Pilih yang belum ditagih
@@ -485,17 +573,15 @@ export default function Page() {
               )}
               <button
                 className="linkbtn strong"
-                onClick={() =>
-                  setSelectedIds(new Set(selectableRows.map((r) => r.id)))
-                }
+                onClick={() => selectRows(selectableRows)}
                 disabled={!hasRows || allSelected}
               >
                 Pilih semua{skippedForUsd > 0 ? " valid" : ""}
               </button>
               <button
                 className="linkbtn"
-                onClick={() => setSelectedIds(new Set())}
-                disabled={selectedIds.size === 0}
+                onClick={() => selectRows([])}
+                disabled={selectedRows.length === 0}
               >
                 Batalkan semua
               </button>
@@ -507,20 +593,21 @@ export default function Page() {
               <table className="invoices">
                 <thead>
                   <tr>
-                    <th className="cb">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={() =>
-                          setSelectedIds(
-                            allSelected
-                              ? new Set()
-                              : new Set(selectableRows.map((r) => r.id))
-                          )
-                        }
-                        aria-label="Pilih semua invoice"
-                      />
+                    <th className={orderMode === "manual" ? "order" : "cb"}>
+                      {orderMode === "manual" ? (
+                        "Urut"
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() =>
+                            selectRows(allSelected ? [] : selectableRows)
+                          }
+                          aria-label="Pilih semua invoice"
+                        />
+                      )}
                     </th>
+                    <th className="no">No.</th>
                     <th>{parseResult?.available.sjNo ? "Invoice / No. SJ" : "Invoice"}</th>
                     <th>Tanggal</th>
                     <th
@@ -542,25 +629,54 @@ export default function Page() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rowsForCustomer.map((r) => {
+                  {rowsForCustomer.map((r, i) => {
                     const selectable = isSelectable(r);
+                    const key = poKey(r.poCustomer);
+                    const group = poGroups.get(key);
+                    const inGroup = group !== undefined;
+                    const prevKey = poKey(rowsForCustomer[i - 1]?.poCustomer ?? "");
+                    const nextKey = poKey(rowsForCustomer[i + 1]?.poCustomer ?? "");
                     const cls = [
                       selectable ? "" : "off",
                       r.alreadyBilled ? "billed" : "",
+                      inGroup ? `po-group po-group-${group % 2}` : "",
+                      inGroup && prevKey !== key ? "po-first" : "",
+                      inGroup && nextKey !== key ? "po-last" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
                     return (
                       <tr key={r.id} className={cls}>
-                        <td className="cb">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(r.id)}
-                            disabled={!selectable}
-                            onChange={() => toggleRow(r.id)}
-                            aria-label={`Pilih invoice ${r.invoiceNo}`}
-                          />
-                        </td>
+                        {orderMode === "manual" ? (
+                          <td className="order">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className={`order-input mono${
+                                duplicateNumbers.has(Number(manualNo[r.id]))
+                                  ? " dup"
+                                  : ""
+                              }`}
+                              value={manualNo[r.id] ?? ""}
+                              disabled={!selectable}
+                              onChange={(e) =>
+                                setRowNumber(r.id, e.target.value)
+                              }
+                              aria-label={`Nomor urut invoice ${r.invoiceNo}`}
+                            />
+                          </td>
+                        ) : (
+                          <td className="cb">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(r.id)}
+                              disabled={!selectable}
+                              onChange={() => toggleRow(r.id)}
+                              aria-label={`Pilih invoice ${r.invoiceNo}`}
+                            />
+                          </td>
+                        )}
+                        <td className="no mono">{exportNo.get(r.id) ?? ""}</td>
                         <td className="mono">
                           {r.invoiceNo}
                           {r.invoiceNoSource === "sj" && (
@@ -591,7 +707,17 @@ export default function Page() {
                               : formatAmount(r.foreignAmount)}
                           </td>
                         )}
-                        <td className="mono">{r.poCustomer}</td>
+                        <td className="mono">
+                          {r.poCustomer}
+                          {inGroup && (
+                            <span
+                              className="badge po"
+                              title="No. PO ini dipakai beberapa invoice, jadi di Excel ditaruh berurutan"
+                            >
+                              PO SAMA
+                            </span>
+                          )}
+                        </td>
                         <td className="desc">{r.flightNumber}</td>
                         {showStatusColumn && (
                           <td className="status-col">
@@ -639,9 +765,7 @@ export default function Page() {
             <span className="inline-msg ok">{successMsg}</span>
           )}
           {!errorMsg && !successMsg && (
-            <span className="inline-msg">
-              Invoice diurutkan otomatis dari tanggal lama ke baru.
-            </span>
+            <span className="inline-msg">{ORDER_HELP[orderMode]}</span>
           )}
           <button
             className="btn-primary"

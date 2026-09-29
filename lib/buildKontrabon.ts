@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
 import { terbilangUang, Currency } from "./terbilang";
+import { orderRows } from "./orderRows";
 
 /**
  * Kontrabon dibuat dengan cara MENGISI file template asli di `lib/template/`,
@@ -158,6 +159,8 @@ export interface KontrabonInput {
   /** IDR (default) atau USD; menentukan template & kolom nilai yang dipakai */
   currency?: Currency;
   rows: KontrabonRowInput[];
+  /** true = `rows` sudah diurutkan manual oleh user, jangan diurut ulang */
+  keepOrder?: boolean;
 }
 
 export interface KontrabonResult {
@@ -345,17 +348,6 @@ function documentTitle(input: KontrabonInput): string {
   return `${yy}.${mm}${dd} ${input.kontrabonNo} ${input.customer}`.trim();
 }
 
-function sortChronologically(rows: KontrabonRowInput[]): KontrabonRowInput[] {
-  return [...rows].sort((a, b) => {
-    const aInvalid = isNaN(a.dateValue);
-    const bInvalid = isNaN(b.dateValue);
-    if (aInvalid && bInvalid) return 0;
-    if (aInvalid) return 1;
-    if (bInvalid) return -1;
-    return a.dateValue - b.dateValue;
-  });
-}
-
 export async function buildKontrabonFile(
   input: KontrabonInput
 ): Promise<KontrabonResult> {
@@ -372,7 +364,8 @@ export async function buildKontrabonFile(
     throw new Error("Template kontrabon tidak lengkap (sheet/workbook/styles).");
   }
 
-  const rows = sortChronologically(input.rows);
+  // otomatis: kronologis, invoice ber-No. PO sama dikumpulkan jadi satu blok
+  const rows = input.keepOrder ? [...input.rows] : orderRows(input.rows);
   const total = rows.reduce((sum, r) => sum + rowAmount(r, currency), 0);
   const lastRow = FIRST_DATA_ROW + rows.length - 1;
 

@@ -14,6 +14,8 @@ interface GenerateBody {
   kembaliTanggal?: string;
   customer: string;
   currency?: string;
+  /** true = urutan manual dari user; `rows` dipakai apa adanya */
+  keepOrder?: boolean;
   rows: KontrabonRowInput[];
 }
 
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       kembaliTanggal: body.kembaliTanggal,
       customer: body.customer,
       currency,
+      keepOrder: body.keepOrder === true,
       rows: body.rows,
     });
 
