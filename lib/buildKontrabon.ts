@@ -3,6 +3,7 @@ import path from "path";
 import JSZip from "jszip";
 import { terbilangUang, Currency } from "./terbilang";
 import { orderRows } from "./orderRows";
+import { DEFAULT_TEMPLATE, TemplateId } from "./templates";
 
 /**
  * Kontrabon dibuat dengan cara MENGISI file template asli di `lib/template/`,
@@ -12,10 +13,16 @@ import { orderRows } from "./orderRows";
  * garis, dan pengaturan cetak persis sama seperti kontrabon yang selama ini
  * dipakai.
  *
- * Ada 2 template, dipilih lewat `currency`:
- *  - IDR -> kontrabon-template.xlsx      (total Rupiah, nilai dari "Total Amount")
- *  - USD -> kontrabon-template-usd.xlsx  (total Dollar, nilai dari
- *           "Total Foreign Currency Amount", blok bank pakai Swift Code)
+ * Template dipilih lewat `template` + `currency`:
+ *  - BAL    IDR -> kontrabon-template.xlsx        (total Rupiah, dari "Total Amount")
+ *  - BAL    USD -> kontrabon-template-usd.xlsx    (total Dollar, dari
+ *                  "Total Foreign Currency Amount", blok bank pakai Swift Code)
+ *  - JOLIE  IDR -> kontrabon-template-jolie.xlsx  (Luminor, Rupiah saja)
+ *  - JULIUS IDR -> kontrabon-template-julius.xlsx (Luminor, Rupiah saja)
+ *
+ * Template boleh masih berisi baris contoh di bawah header tabel, rumus, dan
+ * calcChain: semuanya dibersihkan saat generate (lihat `cleanTemplateSheet`),
+ * jadi file dari Excel bisa langsung ditaruh di `lib/template/`.
  *
  * Konsekuensinya: kalau ada yang mau diubah (rekening, nama penandatangan,
  * logo, ukuran kolom), ubah langsung file template-nya lewat Excel. Tidak ada
@@ -28,6 +35,9 @@ const SHEET_XML = "xl/worksheets/sheet1.xml";
 const WORKBOOK_XML = "xl/workbook.xml";
 const STYLES_XML = "xl/styles.xml";
 const APP_XML = "docProps/app.xml";
+const CALC_CHAIN_XML = "xl/calcChain.xml";
+const CONTENT_TYPES_XML = "[Content_Types].xml";
+const WORKBOOK_RELS_XML = "xl/_rels/workbook.xml.rels";
 
 /**
  * Catatan pengingat yang ditulis DI BAWAH area cetak. Orang yang membuka file
@@ -45,12 +55,16 @@ const WARNING_ARGB = "FFBA131A";
 /** Jarak baris kosong antara tabel invoice dan catatan. */
 const WARNING_GAP = 2;
 
-/** Baris pertama tabel rincian invoice (baris header ada di 31 pada 2 template). */
-const FIRST_DATA_ROW = 32;
-
 interface TemplateSpec {
   /** nama file di dalam `lib/template/` */
   file: string;
+  /**
+   * Baris pertama tabel rincian invoice (tepat di bawah baris header tabel).
+   * Semua baris mulai dari sini di template dibuang sebelum diisi data.
+   */
+  firstDataRow: number;
+  /** sel sisa template (mis. rumus #REF!) yang dikosongkan saat generate */
+  clearCells?: readonly string[];
   /** sel-sel bagian kepala dokumen yang diisi generator */
   cell: {
     tanggal: string;
@@ -81,9 +95,15 @@ interface TemplateSpec {
   };
 }
 
-const TEMPLATES: Record<Currency, TemplateSpec> = {
-  IDR: {
-    file: "kontrabon-template.xlsx",
+/**
+ * Template Luminor (JOLIE & JULIUS) berlayout sama: header tabel di baris 30,
+ * data mulai 31. F8 & F29 berisi rumus lama yang sudah #REF!.
+ */
+function luminorSpec(file: string): TemplateSpec {
+  return {
+    file,
+    firstDataRow: 31,
+    clearCells: ["F8", "F29"],
     cell: {
       tanggal: "C2",
       kontrabonNo: "C3",
@@ -92,47 +112,103 @@ const TEMPLATES: Record<Currency, TemplateSpec> = {
       total: "E8",
       terbilang: "B11",
       kembaliTanggal: "B13",
-      customerTandaTerima: "E26",
+      customerTandaTerima: "E25",
     },
     // Kolom: B No. | C INVOICE | D TANGGAL | E Jumlah (Rp) | F JUMLAH (valas,
     // disembunyikan) | G NO. PO | H Keterangan | I customer (disembunyikan)
     style: {
-      no: 40,
-      invoice: 43,
-      tanggal: 46,
-      jumlahIdr: 45,
-      jumlahUsd: 44,
-      po: 43,
-      keterangan: 43,
-      customer: 43,
+      no: 37,
+      invoice: 38,
+      tanggal: 39,
+      jumlahIdr: 41,
+      jumlahUsd: 37,
+      po: 40,
+      keterangan: 37,
+      customer: 35,
+    },
+  };
+}
+
+const TEMPLATES: Record<TemplateId, Partial<Record<Currency, TemplateSpec>>> = {
+  BAL: {
+    IDR: {
+      file: "kontrabon-template.xlsx",
+      firstDataRow: 32,
+      cell: {
+        tanggal: "C2",
+        kontrabonNo: "C3",
+        customer: "C5",
+        lembar: "E7",
+        total: "E8",
+        terbilang: "B11",
+        kembaliTanggal: "B13",
+        customerTandaTerima: "E26",
+      },
+      // Kolom: B No. | C INVOICE | D TANGGAL | E Jumlah (Rp) | F JUMLAH (valas,
+      // disembunyikan) | G NO. PO | H Keterangan | I customer (disembunyikan)
+      style: {
+        no: 40,
+        invoice: 43,
+        tanggal: 46,
+        jumlahIdr: 45,
+        jumlahUsd: 44,
+        po: 43,
+        keterangan: 43,
+        customer: 43,
+      },
+    },
+    USD: {
+      file: "kontrabon-template-usd.xlsx",
+      firstDataRow: 32,
+      cell: {
+        tanggal: "C2",
+        kontrabonNo: "C3",
+        customer: "C5",
+        lembar: "F7",
+        total: "F8",
+        terbilang: "B11",
+        kembaliTanggal: "B13",
+        customerTandaTerima: "F25",
+      },
+      // Kolom: B No. | C INVOICE | D TANGGAL | E nilai Rupiah (disembunyikan) |
+      // F JUMLAH ($) | G NO. PO | H Keterangan | I customer (disembunyikan)
+      style: {
+        no: 35,
+        invoice: 31,
+        tanggal: 36,
+        jumlahIdr: 32,
+        jumlahUsd: 34,
+        po: 31,
+        keterangan: 31,
+        customer: 31,
+      },
     },
   },
-  USD: {
-    file: "kontrabon-template-usd.xlsx",
-    cell: {
-      tanggal: "C2",
-      kontrabonNo: "C3",
-      customer: "C5",
-      lembar: "F7",
-      total: "F8",
-      terbilang: "B11",
-      kembaliTanggal: "B13",
-      customerTandaTerima: "F25",
-    },
-    // Kolom: B No. | C INVOICE | D TANGGAL | E nilai Rupiah (disembunyikan) |
-    // F JUMLAH ($) | G NO. PO | H Keterangan | I customer (disembunyikan)
-    style: {
-      no: 35,
-      invoice: 31,
-      tanggal: 36,
-      jumlahIdr: 32,
-      jumlahUsd: 34,
-      po: 31,
-      keterangan: 31,
-      customer: 31,
-    },
-  },
+  JOLIE: { IDR: luminorSpec("kontrabon-template-jolie.xlsx") },
+  JULIUS: { IDR: luminorSpec("kontrabon-template-julius.xlsx") },
 };
+
+/** Spec untuk kombinasi template + mata uang; error kalau tidak tersedia. */
+export function resolveTemplate(
+  template: TemplateId,
+  currency: Currency
+): TemplateSpec {
+  const spec = TEMPLATES[template]?.[currency];
+  if (!spec) {
+    throw new TemplateUnavailableError(template, currency);
+  }
+  return spec;
+}
+
+export class TemplateUnavailableError extends Error {
+  constructor(template: string, currency: Currency) {
+    super(
+      `Template ${template} tidak tersedia untuk mata uang ` +
+        `${currency === "USD" ? "Dollar (USD)" : "Rupiah"}.`
+    );
+    this.name = "TemplateUnavailableError";
+  }
+}
 
 export interface KontrabonRowInput {
   invoiceNo: string;
@@ -158,6 +234,8 @@ export interface KontrabonInput {
   customer: string;
   /** IDR (default) atau USD; menentukan template & kolom nilai yang dipakai */
   currency?: Currency;
+  /** BAL (default), JOLIE, atau JULIUS */
+  template?: TemplateId;
   rows: KontrabonRowInput[];
   /** true = `rows` sudah diurutkan manual oleh user, jangan diurut ulang */
   keepOrder?: boolean;
@@ -266,7 +344,7 @@ function buildDataRows(
 ): string {
   return rows
     .map((row, i) => {
-      const r = FIRST_DATA_ROW + i;
+      const r = spec.firstDataRow + i;
       return (
         `<row r="${r}" spans="2:9">` +
         numberCell(`B${r}`, spec.style.no, i + 1) +
@@ -334,6 +412,50 @@ function buildWarningRows(
     .join("");
 }
 
+/**
+ * Buang sisa isi template: semua baris mulai `firstDataRow` (baris contoh /
+ * data lama) dan sel di `clearCells`. Sel kepala dokumen yang masih berupa
+ * rumus tidak perlu diurus di sini karena ditimpa `setCell`.
+ */
+function cleanTemplateSheet(sheetXml: string, spec: TemplateSpec): string {
+  let xml = sheetXml.replace(
+    /<row r="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g,
+    (row, r: string) => (Number(r) >= spec.firstDataRow ? "" : row)
+  );
+  for (const ref of spec.clearCells ?? []) {
+    xml = setCell(xml, ref, null);
+  }
+  return xml;
+}
+
+/**
+ * calcChain mencatat sel mana saja yang berumus. Karena rumus template
+ * ditimpa nilai biasa, daftar itu jadi basi dan Excel akan minta "repair"
+ * saat file dibuka -- jadi dibuang saja; Excel membuatnya ulang sendiri.
+ */
+async function removeCalcChain(zip: JSZip): Promise<void> {
+  if (!zip.file(CALC_CHAIN_XML)) return;
+  zip.remove(CALC_CHAIN_XML);
+
+  const types = zip.file(CONTENT_TYPES_XML);
+  if (types) {
+    const xml = (await types.async("string")).replace(
+      /<Override PartName="\/xl\/calcChain\.xml"[^>]*\/>/,
+      ""
+    );
+    zip.file(CONTENT_TYPES_XML, xml);
+  }
+
+  const rels = zip.file(WORKBOOK_RELS_XML);
+  if (rels) {
+    const xml = (await rels.async("string")).replace(
+      /<Relationship [^>]*Target="calcChain\.xml"[^>]*\/>/,
+      ""
+    );
+    zip.file(WORKBOOK_RELS_XML, xml);
+  }
+}
+
 /** Nama sheet Excel: maksimal 31 karakter, tanpa karakter terlarang. */
 function sanitizeSheetName(name: string): string {
   const cleaned = name
@@ -355,7 +477,7 @@ export async function buildKontrabonFile(
   input: KontrabonInput
 ): Promise<KontrabonResult> {
   const currency: Currency = input.currency === "USD" ? "USD" : "IDR";
-  const spec = TEMPLATES[currency];
+  const spec = resolveTemplate(input.template ?? DEFAULT_TEMPLATE, currency);
 
   const template = await fs.readFile(templatePath(spec));
   const zip = await JSZip.loadAsync(template);
@@ -370,10 +492,11 @@ export async function buildKontrabonFile(
   // otomatis: kronologis, invoice ber-No. PO sama dikumpulkan jadi satu blok
   const rows = input.keepOrder ? [...input.rows] : orderRows(input.rows);
   const total = rows.reduce((sum, r) => sum + rowAmount(r, currency), 0);
-  const lastRow = FIRST_DATA_ROW + rows.length - 1;
+  const lastRow = spec.firstDataRow + rows.length - 1;
 
   // ---- isi bagian kepala dokumen ----
-  let sheetXml = await sheetFile.async("string");
+  let sheetXml = cleanTemplateSheet(await sheetFile.async("string"), spec);
+  await removeCalcChain(zip);
   sheetXml = setCell(sheetXml, spec.cell.tanggal, excelSerial(input.tanggal));
   sheetXml = setCell(sheetXml, spec.cell.kontrabonNo, input.kontrabonNo);
   sheetXml = setCell(sheetXml, spec.cell.customer, input.customer);
@@ -425,10 +548,11 @@ export async function buildKontrabonFile(
     workbookXml = workbookXml.split(currentName).join(escapeXml(sheetName));
   }
   // Area cetak berhenti di baris data terakhir -- catatan pengingat di
-  // bawahnya sengaja TIDAK ikut tercetak / ter-PDF ke customer.
+  // bawahnya sengaja TIDAK ikut tercetak / ter-PDF ke customer. Kolomnya
+  // mengikuti template (BAL: A..J, Luminor: B..H).
   workbookXml = workbookXml.replace(
-    /\$A\$1:\$J\$\d+/,
-    `$$A$$1:$$J$$${lastRow}`
+    /(<definedName name="_xlnm\.Print_Area"[^>]*>[^<]*!\$[A-Z]+\$1:\$[A-Z]+\$)\d+/,
+    `$1${lastRow}`
   );
   zip.file(WORKBOOK_XML, workbookXml);
 

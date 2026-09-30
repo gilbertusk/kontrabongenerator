@@ -31,8 +31,10 @@ lib/
   buildKontrabon.ts       -> isi template kontrabon dengan data invoice
   terbilang.ts            -> konversi nominal ke terbilang (Rupiah & USD)
   template/
-    kontrabon-template.xlsx     -> template kontrabon Rupiah
-    kontrabon-template-usd.xlsx -> template kontrabon USD
+    kontrabon-template.xlsx        -> template BAL Rupiah
+    kontrabon-template-usd.xlsx    -> template BAL USD
+    kontrabon-template-jolie.xlsx  -> template JOLIE (Luminor, Rupiah)
+    kontrabon-template-julius.xlsx -> template JULIUS (Luminor, Rupiah)
 ```
 
 ## Menjalankan di komputer sendiri
@@ -159,10 +161,27 @@ data invoice dan rumusnya yang dikosongkan. Jadi logo, kop "Contact Us",
 lebar kolom, kolom tersembunyi, garis tabel, tinggi baris, sampai
 pengaturan cetak (A4, margin, skala) persis sama seperti aslinya.
 
-## Dua template: Rupiah & USD
+## Pilihan template: BAL, JOLIE, JULIUS
 
-Pilihan **Mata Uang / Template** di website menentukan file template
-mana yang dipakai:
+Pilihan **Template Kontrabon** + **Mata Uang** di website menentukan file
+template mana yang dipakai:
+
+| Template | Rupiah                           | USD                           | Keterangan |
+| -------- | -------------------------------- | ----------------------------- | ---------- |
+| BAL      | `kontrabon-template.xlsx`        | `kontrabon-template-usd.xlsx` | PT Berlian Artha Label |
+| JOLIE    | `kontrabon-template-jolie.xlsx`  | -                             | Luminor, rekening a.n. Jolie Yang & Julius Suripto |
+| JULIUS   | `kontrabon-template-julius.xlsx` | -                             | Luminor, rekening a.n. Julius Suripto atau Liris Limar |
+
+JOLIE & JULIUS hanya punya versi Rupiah, jadi tombol Dollar (USD) dikunci
+saat salah satunya dipilih (API juga menolak kombinasi itu).
+
+Template JOLIE & JULIUS dipakai persis seperti file aslinya dari Excel.
+Baris contoh di bawah header tabel (nomor 1..40 + nama customer contoh),
+rumus lama yang sudah `#REF!` (F8, F29), dan `calcChain.xml` dibersihkan
+otomatis setiap kali generate. Jadi kalau template itu diubah di Excel,
+file barunya cukup ditaruh ulang di `lib/template/`.
+
+### Template BAL: Rupiah & USD
 
 | Pilihan      | Template                      | Diambil dari kolom ECOUNT       | Dari contoh                            |
 | ------------ | ----------------------------- | ------------------------------- | -------------------------------------- |
@@ -184,17 +203,17 @@ perlu ikut, invoice itu bisa dicentang manual; kolom JUMLAH ($)-nya ditulis 0.
 
 Sel yang diisi otomatis oleh website:
 
-| Isi                                    | Rupiah | USD  |
-| -------------------------------------- | ------ | ---- |
-| tanggal kontrabon                      | C2     | C2   |
-| No. kontrabon                          | C3     | C3   |
-| nama customer                          | C5     | C5   |
-| jumlah lembar faktur                   | E7     | F7   |
-| total nilai                            | E8     | F8   |
-| terbilang                              | B11    | B11  |
-| Kembali Tanggal (bila diisi)           | B13    | B13  |
-| nama customer (di atas "Tanda Terima") | E26    | F25  |
-| tabel rincian invoice                  | mulai baris 32 | mulai baris 32 |
+| Isi                                    | BAL Rupiah | BAL USD | JOLIE / JULIUS |
+| -------------------------------------- | ---------- | ------- | -------------- |
+| tanggal kontrabon                      | C2         | C2      | C2             |
+| No. kontrabon                          | C3         | C3      | C3             |
+| nama customer                          | C5         | C5      | C5             |
+| jumlah lembar faktur                   | E7         | F7      | E7             |
+| total nilai                            | E8         | F8      | E8             |
+| terbilang                              | B11        | B11     | B11            |
+| Kembali Tanggal (bila diisi)           | B13        | B13     | B13            |
+| nama customer (di atas "Tanda Terima") | E26        | F25     | E25            |
+| tabel rincian invoice                  | mulai baris 32 | mulai baris 32 | mulai baris 31 |
 
 ### Catatan pengingat di file hasil
 
@@ -226,7 +245,9 @@ Syarat yang harus dijaga supaya generator tetap jalan:
 
 - Sel yang ada di tabel "diisi otomatis" di atas harus tetap ada dan
   tetap di posisi itu (isinya boleh kosong).
-- Baris header tabel tetap di baris 31, data invoice mulai baris 32.
+- Baris header tabel tetap di posisinya (BAL: baris 31, data mulai 32;
+  JOLIE/JULIUS: baris 30, data mulai 31). Semua isi di bawah header
+  dibuang saat generate.
 - Jangan menambah sheet baru; template hanya boleh punya 1 sheet.
 - Jangan menaruh angka hasil ketik tangan di dalam text box — angka
   seperti itu tidak ikut ter-update dan akan salah di kontrabon

@@ -13,6 +13,13 @@ import {
 } from "@/lib/orderRows";
 import Intro from "./Intro";
 import Help from "./Help";
+import {
+  TEMPLATE_LIST,
+  DEFAULT_TEMPLATE,
+  TemplateId,
+  findTemplate,
+  supportsCurrency,
+} from "@/lib/templates";
 
 type Currency = "IDR" | "USD";
 
@@ -85,6 +92,14 @@ export default function Page() {
   const [manualNo, setManualNo] = useState<ManualNumbers>({});
 
   const [currency, setCurrency] = useState<Currency>("IDR");
+  const [templateId, setTemplateId] = useState<TemplateId>(DEFAULT_TEMPLATE);
+  const template = findTemplate(templateId) ?? TEMPLATE_LIST[0];
+
+  function changeTemplate(id: TemplateId) {
+    setTemplateId(id);
+    // template Luminor hanya punya versi Rupiah
+    if (!supportsCurrency(id, currency)) setCurrency("IDR");
+  }
   const [kontrabonNo, setKontrabonNo] = useState("");
   const [tanggal, setTanggal] = useState(todayInputValue());
   const [kembaliTanggal, setKembaliTanggal] = useState("");
@@ -299,6 +314,7 @@ export default function Page() {
             : undefined,
           customer: customerNameOverride.trim(),
           currency,
+          template: templateId,
           // mode manual: server wajib memakai urutan kiriman apa adanya
           keepOrder: orderMode === "manual",
           rows: selectedRows.map((r) => ({
@@ -417,6 +433,24 @@ export default function Page() {
 
           <section>
             <div className="block-head">
+              <h2 className="block-title">Template Kontrabon</h2>
+            </div>
+            <div className="segmented three">
+              {TEMPLATE_LIST.map((t) => (
+                <button
+                  key={t.id}
+                  className={templateId === t.id ? "on" : ""}
+                  onClick={() => changeTemplate(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <p className="helper">{template.description}</p>
+          </section>
+
+          <section>
+            <div className="block-head">
               <h2 className="block-title">Mata Uang</h2>
             </div>
             <div className="segmented">
@@ -429,6 +463,12 @@ export default function Page() {
               <button
                 className={currency === "USD" ? "on" : ""}
                 onClick={() => setCurrency("USD")}
+                disabled={!supportsCurrency(templateId, "USD")}
+                title={
+                  supportsCurrency(templateId, "USD")
+                    ? undefined
+                    : `Template ${template.label} hanya tersedia untuk Rupiah`
+                }
               >
                 Dollar (USD)
               </button>
@@ -492,7 +532,7 @@ export default function Page() {
                   <input
                     id="f-no"
                     type="text"
-                    placeholder="BAL-2609027"
+                    placeholder={template.numberExample}
                     value={kontrabonNo}
                     onChange={(e) => setKontrabonNo(e.target.value)}
                   />

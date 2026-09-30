@@ -46,6 +46,17 @@ export const HELP_TOPICS: HelpTopic[] = [
     keywords: ["dollar", "rupiah", "usd", "idr", "valas", "mata uang", "swift"],
   },
   {
+    id: "template",
+    question: "Pilihan template BAL, JOLIE, dan JULIUS bedanya apa?",
+    answer: [
+      "BAL adalah kontrabon PT Berlian Artha Label, tersedia versi Rupiah dan Dollar (USD).",
+      "JOLIE dan JULIUS adalah kontrabon Luminor. Bedanya hanya di blok rekening: JOLIE atas nama Jolie Yang & Julius Suripto, JULIUS atas nama Julius Suripto atau Liris Limar.",
+      'JOLIE dan JULIUS hanya tersedia untuk Rupiah, jadi pilihan Dollar (USD) otomatis dikunci saat salah satunya dipilih.',
+      "Isi data invoice, urutan, dan nama file hasilnya sama untuk ketiga template.",
+    ],
+    keywords: ["template", "bal", "jolie", "julius", "luminor", "lmn", "rekening", "pilih template"],
+  },
+  {
     id: "tidak-bisa-dicentang",
     question: "Kenapa ada invoice yang redup dan tidak tercentang?",
     answer: [

@@ -4,6 +4,11 @@ import {
   Currency,
   KontrabonRowInput,
 } from "@/lib/buildKontrabon";
+import {
+  DEFAULT_TEMPLATE,
+  findTemplate,
+  supportsCurrency,
+} from "@/lib/templates";
 
 export const runtime = "nodejs";
 
@@ -13,6 +18,8 @@ interface GenerateBody {
   kembaliTanggal?: string;
   customer: string;
   currency?: string;
+  /** BAL (default), JOLIE, atau JULIUS */
+  template?: string;
   /** true = urutan manual dari user; `rows` dipakai apa adanya */
   keepOrder?: boolean;
   rows: KontrabonRowInput[];
@@ -58,6 +65,24 @@ export async function POST(req: NextRequest) {
 
   const currency: Currency = body.currency === "USD" ? "USD" : "IDR";
 
+  const template = findTemplate(body.template ?? DEFAULT_TEMPLATE);
+  if (!template) {
+    return NextResponse.json(
+      { error: `Template "${body.template}" tidak dikenal.` },
+      { status: 400 }
+    );
+  }
+  if (!supportsCurrency(template.id, currency)) {
+    return NextResponse.json(
+      {
+        error:
+          `Template ${template.label} hanya tersedia untuk Rupiah. ` +
+          `Ganti mata uang ke Rupiah, atau pilih template BAL.`,
+      },
+      { status: 400 }
+    );
+  }
+
   // Kontrabon USD: invoice tanpa nilai USD boleh ikut kalau user sengaja
   // mencentangnya; kolom JUMLAH ($)-nya ditulis 0 (lihat buildDataRows).
 
@@ -73,6 +98,7 @@ export async function POST(req: NextRequest) {
       kembaliTanggal: body.kembaliTanggal,
       customer: body.customer,
       currency,
+      template: template.id,
       keepOrder: body.keepOrder === true,
       rows: body.rows,
     });

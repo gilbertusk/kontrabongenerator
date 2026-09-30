@@ -223,7 +223,7 @@ input[type="file"] {
   border-left: 1px solid var(--rule-strong);
 }
 
-.segmented button:hover:not(.on) {
+.segmented button:hover:not(.on):not(:disabled) {
   background: #faf8f5;
 }
 
@@ -232,6 +232,17 @@ input[type="file"] {
   border-color: var(--accent);
   color: #fff;
   font-weight: 500;
+}
+
+.segmented.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Pilihan yang tidak tersedia untuk template aktif (mis. Dollar di JOLIE). */
+.segmented button:disabled {
+  color: var(--faint);
+  background: var(--page);
+  cursor: not-allowed;
 }
 
 .form {
