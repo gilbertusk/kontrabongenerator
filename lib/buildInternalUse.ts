@@ -2,8 +2,10 @@ import fs from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
 import {
-  FreeQtyLine,
+  InternalUseKind,
+  InternalUseLine,
   InternalUseRow,
+  KIND_TITLE,
   fileNameDate,
   toInternalUseRows,
 } from "./internalUse";
@@ -54,10 +56,13 @@ const COLUMNS: readonly ColumnSpec[] = [
 ];
 
 export interface InternalUseFileInput {
+  /** menentukan nama file: Free Qty / Reject */
+  kind: InternalUseKind;
   /** tanggal input ke ECOUNT, "YYYY-MM-DD" */
   tanggal: string;
   picCode: string;
-  rows: readonly FreeQtyLine[];
+  /** baris yang Usage Type & Remark-nya sudah ditentukan */
+  lines: readonly InternalUseLine[];
 }
 
 export interface InternalUseFileResult {
@@ -127,7 +132,7 @@ function buildDataRows(
 export async function buildInternalUseFile(
   input: InternalUseFileInput
 ): Promise<InternalUseFileResult> {
-  const rows = toInternalUseRows(input.rows, {
+  const rows = toInternalUseRows(input.lines, {
     date: input.tanggal,
     picCode: input.picCode,
   });
@@ -163,6 +168,6 @@ export async function buildInternalUseFile(
   const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return {
     buffer,
-    filename: `Internal Use Free Qty ${fileNameDate(input.tanggal)}.xlsx`,
+    filename: `Internal Use ${KIND_TITLE[input.kind]} ${fileNameDate(input.tanggal)}.xlsx`,
   };
 }

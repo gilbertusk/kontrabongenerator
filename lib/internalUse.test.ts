@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  REJECT_CATEGORIES,
   ROWS_PER_SLIP,
   ecountDate,
   fileNameDate,
   findPic,
+  findRejectCategory,
+  freeQtyLines,
   freeQtyRemark,
+  rejectLines,
   slipSeqNo,
   toInternalUseRows,
-  validateInternalUseRequest,
 } from "./internalUse";
 
 describe("ecountDate", () => {
@@ -55,11 +58,55 @@ describe("findPic", () => {
   });
 });
 
+describe("REJECT_CATEGORIES", () => {
+  it("Reject 1-4 memakai Usage Type 00035-00038", () => {
+    expect(REJECT_CATEGORIES.map((c) => [c.label, c.usageType])).toEqual([
+      ["Reject 1", "00035"],
+      ["Reject 2", "00036"],
+      ["Reject 3", "00037"],
+      ["Reject 4", "00038"],
+    ]);
+    expect(findRejectCategory(3)?.usageType).toBe("00037");
+    expect(findRejectCategory(5)).toBeUndefined();
+    expect(findRejectCategory("1")).toBeUndefined();
+  });
+});
+
+describe("freeQtyLines", () => {
+  it("Usage Type 00026 dan Remark QTY FREE + tanggal input", () => {
+    expect(freeQtyLines([{ itemCode: "FG1", qty: 200 }], "2026-11-24")).toEqual([
+      {
+        itemCode: "FG1",
+        qty: 200,
+        usageType: "00026",
+        remark: "QTY FREE 24 - 11 - 2026",
+      },
+    ]);
+  });
+});
+
+describe("rejectLines", () => {
+  it("Usage Type sesuai kategori dan Remark = Flight Number", () => {
+    expect(
+      rejectLines([
+        { itemCode: "FG1", qty: 100, category: 1, flightNo: "HNM11/0745" },
+        { itemCode: "FG1", qty: 50, category: 3, flightNo: "HNM11/0745" },
+      ])
+    ).toEqual([
+      { itemCode: "FG1", qty: 100, usageType: "00035", remark: "HNM11/0745" },
+      { itemCode: "FG1", qty: 50, usageType: "00037", remark: "HNM11/0745" },
+    ]);
+  });
+});
+
 describe("toInternalUseRows", () => {
-  const lines = [
-    { itemCode: "FG002784", qty: 200 },
-    { itemCode: "FG009165", qty: 10 },
-  ];
+  const lines = freeQtyLines(
+    [
+      { itemCode: "FG002784", qty: 200 },
+      { itemCode: "FG009165", qty: 10 },
+    ],
+    "2026-11-24"
+  );
 
   it("mengisi kolom wajib dengan nilai tetap + PIC + tanggal pilihan", () => {
     const rows = toInternalUseRows(lines, { date: "2026-11-24", picCode: "157" });
@@ -81,10 +128,20 @@ describe("toInternalUseRows", () => {
     ]);
   });
 
+  it("Usage Type & Remark diambil dari baris (menu Reject)", () => {
+    const [row] = toInternalUseRows(
+      rejectLines([{ itemCode: "FG1", qty: 5, category: 2, flightNo: "MDS11/0479" }]),
+      { date: "2026-11-24", picCode: "58" }
+    );
+    expect(row).toMatchObject({ usageType: "00036", remark: "MDS11/0479", locationOut: "00009" });
+  });
+
   it("Seq. No. naik setiap 1000 baris", () => {
     const many = Array.from({ length: 2001 }, (_, i) => ({
       itemCode: `FG${i}`,
       qty: 1,
+      usageType: "00026",
+      remark: "",
     }));
     const rows = toInternalUseRows(many, { date: "2026-11-24", picCode: "58" });
     expect(rows[999].seqNo).toBe(1);
@@ -102,49 +159,5 @@ describe("toInternalUseRows", () => {
     expect(() =>
       toInternalUseRows(lines, { date: "2026-11-24", picCode: "1" })
     ).toThrow(/PIC/);
-  });
-});
-
-describe("validateInternalUseRequest", () => {
-  const valid = {
-    tanggal: "2026-11-24",
-    picCode: "58",
-    rows: [{ itemCode: "FG002784", qty: 200 }],
-  };
-
-  it("menerima body yang benar dan merapikan kode item", () => {
-    const result = validateInternalUseRequest({
-      ...valid,
-      rows: [{ itemCode: "  FG002784 ", qty: 200 }],
-    });
-    expect(result).toEqual({
-      ok: true,
-      value: { ...valid, rows: [{ itemCode: "FG002784", qty: 200 }] },
-    });
-  });
-
-  it.each([
-    [null, /tidak valid/],
-    [{ ...valid, tanggal: "2026-13-01" }, /Tanggal/],
-    [{ ...valid, picCode: "" }, /PIC/],
-    [{ ...valid, picCode: "12345" }, /PIC/],
-    [{ ...valid, rows: [] }, /minimal 1/],
-    [{ ...valid, rows: "x" }, /minimal 1/],
-    [{ ...valid, rows: [{ itemCode: "", qty: 1 }] }, /Item Code/],
-    [{ ...valid, rows: [{ itemCode: "X".repeat(21), qty: 1 }] }, /Item Code/],
-    [{ ...valid, rows: [{ itemCode: "FG1", qty: 0 }] }, /Qty/],
-    [{ ...valid, rows: [{ itemCode: "FG1", qty: -5 }] }, /Qty/],
-    [{ ...valid, rows: [{ itemCode: "FG1", qty: "10" }] }, /Qty/],
-    [{ ...valid, rows: [{ itemCode: "FG1", qty: Infinity }] }, /Qty/],
-  ])("menolak body %#", (body, message) => {
-    const result = validateInternalUseRequest(body);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(message);
-  });
-
-  it("menolak jumlah baris yang tidak wajar", () => {
-    const rows = Array.from({ length: 20001 }, () => ({ itemCode: "FG1", qty: 1 }));
-    const result = validateInternalUseRequest({ ...valid, rows });
-    expect(result.ok).toBe(false);
   });
 });

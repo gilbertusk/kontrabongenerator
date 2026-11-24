@@ -770,6 +770,11 @@ select.unset {
   border-top: 1px solid var(--rule);
 }
 
+/* <div> pembungkus dt+dd (HTML valid) tidak ikut membentuk grid. */
+.kv-row {
+  display: contents;
+}
+
 .kv dt,
 .kv dd {
   padding: 6px 0;
@@ -806,6 +811,12 @@ table.invoices .desc.wide {
 table.invoices td.remark {
   font-size: 11px;
   color: var(--muted);
+}
+
+/* Penanda yang perlu dicek sebelum upload (mis. rincian reject berlebih). */
+.badge.warn {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Baris pertama slip baru (Seq. No. 2, 3, ...): garis tinta di atasnya. */

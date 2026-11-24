@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-type MenuId = "kontrabon" | "free-qty";
+export type MenuId = "kontrabon" | "free-qty" | "reject";
 
 const MENUS: readonly { id: MenuId; href: string; label: string }[] = [
   { id: "kontrabon", href: "/", label: "Kontrabon" },
   { id: "free-qty", href: "/free-qty", label: "Internal Use Free Qty" },
+  { id: "reject", href: "/reject", label: "Internal Use Reject" },
 ];
 
 type Props = {

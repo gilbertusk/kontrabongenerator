@@ -20,7 +20,12 @@ app/
   page.tsx                -> menu Kontrabon (upload, pilih invoice, form)
   free-qty/page.tsx       -> menu Internal Use Free Qty
   free-qty/FreeQtyTable.tsx -> tabel item + free qty
-  TopNav.tsx              -> menu di baris atas (Kontrabon | Internal Use Free Qty)
+  reject/page.tsx         -> menu Internal Use Reject
+  reject/RejectTable.tsx  -> tabel reject (dipecah per kategori Reject 1-4)
+  _internal-use/          -> bagian tampilan yang sama di menu Free Qty & Reject
+                             (isian tanggal/PIC, nilai tetap, ringkasan, tombol)
+  AppTopbar.tsx           -> baris atas semua halaman (logo, menu, perusahaan)
+  TopNav.tsx              -> menu: Kontrabon | Internal Use Free Qty | Internal Use Reject
   FileDrop.tsx            -> kotak upload/drag file .xlsx (dipakai kedua menu)
   downloadFile.ts         -> simpan file hasil API ke komputer user
   Intro.tsx               -> layar pembuka logo BAL 3D
@@ -35,7 +40,9 @@ lib/
   parseEcount.ts          -> baca & petakan kolom file export ECOUNT (Sales List)
   parseSalesStatus.ts     -> baca export ECOUNT "Sales Status Details"
   freeQty.ts              -> ambil free qty dari kolom Remarks/Ikatan
-  internalUse.ts          -> nilai tetap, PIC, Seq. No., validasi Internal Use
+  parseGoodsReceipt.ts    -> baca export ECOUNT "Goods Receipt Status" + rincian reject
+  internalUse.ts          -> nilai tetap, PIC, Seq. No., Usage Type reject
+  internalUseRequest.ts   -> validasi body POST /api/internal-use
   buildInternalUse.ts     -> isi template upload Internal Use ECOUNT
   sheetParsing.ts         -> pembantu baca sel Excel (dipakai kedua parser)
   sheetXml.ts             -> pembantu tulis XML sheet (dipakai kedua builder)
@@ -383,6 +390,46 @@ cukup tambah satu baris di `PIC_LIST`. Kalau ECOUNT mengganti template,
 taruh file barunya di `lib/template/internal-use-template.xlsx`; generator
 memeriksa judul kolom yang diisi (Date, Seq. No., Location-Out, ...) dan
 menolak membuat file kalau posisinya bergeser.
+
+## Menu Internal Use Reject
+
+Menu ketiga (`/reject`) membuat file upload ECOUNT **Internal Use** untuk
+barang reject, dari export ECOUNT **Goods Receipt Status**. Template dan
+kolomnya sama dengan Free Qty; yang berbeda hanya **Usage Type** dan
+**Remark**.
+
+Alur pakai:
+
+1. Upload file export "Goods Receipt Status" (`.xlsx`).
+2. Website menampilkan baris yang punya reject, dipecah per kategori. Satu
+   baris laporan bisa jadi beberapa baris file, misalnya Qty. Reject 150 =
+   Reject 1 (100) + Reject 3 (50) menjadi 2 baris. Semua langsung dicentang.
+3. Isi **Tanggal Input** dan pilih **PIC**, lalu klik
+   **Generate & Download Internal Use**.
+
+| Kolom laporan                          | Usage Type | Nama di ECOUNT |
+| -------------------------------------- | ---------- | -------------- |
+| Reject 1 (Material/Setting/Sambungan)  | `00035`    | Reject 1 |
+| Reject 2 (Slitting/Sonic)              | `00036`    | Reject 2 |
+| Reject 3 (Printing)                    | `00037`    | Reject 3 |
+| Reject 4 (Cut&Fold)                    | `00038`    | Reject 4 |
+
+- **Remark** = Flight Number dari baris laporan.
+- **Qty. Reject tanpa rincian**: kalau "Qty. Reject" terisi tapi kolom
+  Reject 1-4 kosong (atau jumlahnya kurang), sisanya dimasukkan ke
+  **Reject 1**. Barisnya diberi tanda "TANPA RINCIAN" di tabel. Lihat
+  `rejectBreakdown` di `lib/parseGoodsReceipt.ts`.
+- Kolom lain (Date, Seq. No., Location-Out `00009`, PIC, Gross weight `0`,
+  Koli `0`, No. PO Customer `-`) sama persis dengan Free Qty.
+
+Browser hanya mengirim kategori (1-4) dan Flight Number. Kode Usage Type
+dipetakan di server (`REJECT_CATEGORIES` di `lib/internalUse.ts`), jadi kalau
+kode di ECOUNT berubah, cukup ubah di sana.
+
+Diuji dengan file Goods Receipt Status 21-23/11/2026: 575 baris, 102 punya
+reject, menjadi 105 baris file (Reject 1 = 11.902, Reject 2 = 100,
+Reject 3 = 1.101). Totalnya 13.103, sama dengan baris Total di laporan
+ECOUNT.
 
 ## Catatan tentang terbilang
 

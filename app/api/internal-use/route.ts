@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildInternalUseFile } from "@/lib/buildInternalUse";
-import { validateInternalUseRequest } from "@/lib/internalUse";
+import { validateInternalUseRequest } from "@/lib/internalUseRequest";
 
 export const runtime = "nodejs";
 
@@ -10,8 +10,12 @@ function sanitizeFilename(name: string): string {
 }
 
 /**
- * POST { tanggal: "YYYY-MM-DD", picCode, rows: [{ itemCode, qty }] }
- * -> file .xlsx template upload ECOUNT "Internal Use" yang sudah terisi.
+ * POST -> file .xlsx template upload ECOUNT "Internal Use" yang sudah terisi.
+ *
+ * Free Qty : { kind?: "free", tanggal: "YYYY-MM-DD", picCode,
+ *              rows: [{ itemCode, qty }] }
+ * Reject   : { kind: "reject", tanggal, picCode,
+ *              rows: [{ itemCode, qty, category: 1-4, flightNo }] }
  */
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -39,7 +43,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("Gagal generate Internal Use free qty:", err);
+    console.error("Gagal generate Internal Use:", err);
     return NextResponse.json(
       { error: "Gagal membuat file Internal Use. Coba lagi." },
       { status: 500 }
