@@ -2,6 +2,13 @@ import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
 import { buildInternalUseFile } from "./buildInternalUse";
+import { FreeQtyLine, freeQtyLines, rejectLines } from "./internalUse";
+
+const TANGGAL = "2026-11-24";
+
+function freeInput(picCode: string, rows: FreeQtyLine[]) {
+  return { kind: "free" as const, tanggal: TANGGAL, picCode, lines: freeQtyLines(rows, TANGGAL) };
+}
 
 function readBack(buffer: Buffer) {
   const wb = XLSX.read(buffer, { type: "buffer" });
@@ -15,14 +22,12 @@ function readBack(buffer: Buffer) {
 
 describe("buildInternalUseFile", () => {
   it("mengisi template ECOUNT mulai baris 2 dengan kolom yang benar", async () => {
-    const { buffer, filename } = await buildInternalUseFile({
-      tanggal: "2026-11-24",
-      picCode: "58",
-      rows: [
+    const { buffer, filename } = await buildInternalUseFile(
+      freeInput("58", [
         { itemCode: "FG002784", qty: 200 },
         { itemCode: "FG009165", qty: 10 },
-      ],
-    });
+      ])
+    );
 
     expect(filename).toBe("Internal Use Free Qty 24-11-2026.xlsx");
 
@@ -54,16 +59,27 @@ describe("buildInternalUseFile", () => {
     expect(ws.U2.t).toBe("n");
   });
 
-  it("Seq. No. pindah ke 2 mulai baris data ke-1001", async () => {
-    const rows = Array.from({ length: 1001 }, (_, i) => ({
-      itemCode: `FG${i}`,
-      qty: 1,
-    }));
-    const { buffer } = await buildInternalUseFile({
-      tanggal: "2026-11-24",
+  it("file Reject: Usage Type per kategori, Remark = Flight Number", async () => {
+    const { buffer, filename } = await buildInternalUseFile({
+      kind: "reject",
+      tanggal: TANGGAL,
       picCode: "151",
-      rows,
+      lines: rejectLines([
+        { itemCode: "FG00022589", qty: 100, category: 1, flightNo: "HNM11/0745" },
+        { itemCode: "FG00022589", qty: 50, category: 3, flightNo: "HNM11/0745" },
+      ]),
     });
+
+    expect(filename).toBe("Internal Use Reject 24-11-2026.xlsx");
+    const { ws } = readBack(buffer);
+    expect([ws.R2.v, ws.U2.v, ws.W2.v, ws.X2.v]).toEqual(["FG00022589", 100, "00035", "HNM11/0745"]);
+    expect([ws.R3.v, ws.U3.v, ws.W3.v, ws.X3.v]).toEqual(["FG00022589", 50, "00037", "HNM11/0745"]);
+    expect([ws.F2.v, ws.G2.v, ws.O2.v]).toEqual(["00009", "151", "-"]);
+  });
+
+  it("Seq. No. pindah ke 2 mulai baris data ke-1001", async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({ itemCode: `FG${i}`, qty: 1 }));
+    const { buffer } = await buildInternalUseFile(freeInput("151", rows));
     const { ws } = readBack(buffer);
     expect(ws.B1001.v).toBe("1");
     expect(ws.B1002.v).toBe("2");
@@ -71,32 +87,20 @@ describe("buildInternalUseFile", () => {
   });
 
   it("komentar petunjuk kolom dari ECOUNT tetap ada", async () => {
-    const { buffer } = await buildInternalUseFile({
-      tanggal: "2026-11-24",
-      picCode: "58",
-      rows: [{ itemCode: "FG1", qty: 5 }],
-    });
+    const { buffer } = await buildInternalUseFile(freeInput("58", [{ itemCode: "FG1", qty: 5 }]));
     const zip = await JSZip.loadAsync(buffer);
     expect(zip.file("xl/comments1.xml")).not.toBeNull();
   });
 
   it("Item Code berisi karakter $ tetap utuh", async () => {
-    const { buffer } = await buildInternalUseFile({
-      tanggal: "2026-11-24",
-      picCode: "58",
-      rows: [{ itemCode: "AB$&C", qty: 5 }],
-    });
+    const { buffer } = await buildInternalUseFile(freeInput("58", [{ itemCode: "AB$&C", qty: 5 }]));
     const { ws } = readBack(buffer);
     expect(ws.R2.v).toBe("AB$&C");
   });
 
   it("menolak PIC yang tidak terdaftar", async () => {
     await expect(
-      buildInternalUseFile({
-        tanggal: "2026-11-24",
-        picCode: "1",
-        rows: [{ itemCode: "FG1", qty: 5 }],
-      })
+      buildInternalUseFile(freeInput("1", [{ itemCode: "FG1", qty: 5 }]))
     ).rejects.toThrow(/PIC/);
   });
 });

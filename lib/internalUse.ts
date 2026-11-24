@@ -1,30 +1,28 @@
 /**
- * Aturan pengisian template upload ECOUNT "Internal Use" untuk free qty.
- * File ini sengaja tidak mengimpor `fs` supaya bisa dipakai di halaman web
- * (pilihan PIC, pratinjau Remark) maupun di server (pembuat file Excel).
+ * Aturan pengisian template upload ECOUNT "Internal Use", dipakai menu
+ * Internal Use Free Qty dan Internal Use Reject. File ini sengaja tidak
+ * mengimpor `fs` supaya bisa dipakai di halaman web (pilihan PIC, pratinjau)
+ * maupun di server (pembuat file Excel).
  *
- * Nilai tetap di bawah ditentukan oleh tim (lihat README):
- * - Location-Out 00009, Usage Type 00026
+ * Nilai tetap di bawah ditentukan oleh tim (lihat README), sama untuk kedua
+ * menu:
+ * - Location-Out 00009
  * - Gross weight 0, Koli Barang 0, No. PO Customer "-"
  * - 1 slip (Seq. No.) maksimal 1000 baris
- * - Remark: "QTY FREE DD - MM - YYYY" (tanggal input)
+ *
+ * Yang berbeda per menu hanya Usage Type dan Remark:
+ * - Free Qty : Usage Type 00026, Remark "QTY FREE DD - MM - YYYY"
+ * - Reject   : Usage Type 00035..00038 (Reject 1..4), Remark = Flight Number
  */
 
 export const LOCATION_OUT = "00009";
-export const USAGE_TYPE = "00026";
 export const PO_CUSTOMER_PLACEHOLDER = "-";
 export const GROSS_WEIGHT = 0;
 export const KOLI = 0;
+export const FREE_QTY_USAGE_TYPE = "00026";
 
 /** Baris ke-1..1000 masuk Seq. No. 1, ke-1001..2000 Seq. No. 2, dst. */
 export const ROWS_PER_SLIP = 1000;
-
-/** Batas panjang Item Code di ECOUNT. */
-export const ITEM_CODE_MAX_LENGTH = 20;
-/** Qty ECOUNT: maksimal 12 digit bilangan bulat. */
-const QTY_MAX = 999_999_999_999;
-/** Pengaman supaya endpoint tidak diminta membuat file raksasa. */
-export const MAX_LINES = 20_000;
 
 export interface PicOption {
   code: string;
@@ -41,6 +39,30 @@ export const PIC_LIST: readonly PicOption[] = [
 export function findPic(code: string): PicOption | undefined {
   return PIC_LIST.find((p) => p.code === code);
 }
+
+export type RejectCategoryNo = 1 | 2 | 3 | 4;
+
+export interface RejectCategory {
+  no: RejectCategoryNo;
+  /** kode Usage Type di ECOUNT */
+  usageType: string;
+  label: string;
+  /** keterangan kolom di laporan Goods Receipt Status */
+  description: string;
+}
+
+export const REJECT_CATEGORIES: readonly RejectCategory[] = [
+  { no: 1, usageType: "00035", label: "Reject 1", description: "Material/Setting/Sambungan" },
+  { no: 2, usageType: "00036", label: "Reject 2", description: "Slitting/Sonic" },
+  { no: 3, usageType: "00037", label: "Reject 3", description: "Printing" },
+  { no: 4, usageType: "00038", label: "Reject 4", description: "Cut&Fold" },
+];
+
+export function findRejectCategory(no: unknown): RejectCategory | undefined {
+  return REJECT_CATEGORIES.find((c) => c.no === no);
+}
+
+/* ---------- tanggal ---------- */
 
 interface DateParts {
   dd: string;
@@ -83,7 +105,7 @@ export function fileNameDate(isoDate: string): string {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-/** Kolom Remark: "QTY FREE 24 - 11 - 2026". */
+/** Remark Free Qty: "QTY FREE 24 - 11 - 2026". */
 export function freeQtyRemark(isoDate: string): string {
   const { dd, mm, yyyy } = requireDate(isoDate);
   return `QTY FREE ${dd} - ${mm} - ${yyyy}`;
@@ -94,9 +116,47 @@ export function slipSeqNo(index: number): number {
   return Math.floor(index / ROWS_PER_SLIP) + 1;
 }
 
+/* ---------- baris data ---------- */
+
+/** Satu baris data template; yang beda per menu hanya usageType & remark. */
+export interface InternalUseLine {
+  itemCode: string;
+  qty: number;
+  usageType: string;
+  remark: string;
+}
+
 export interface FreeQtyLine {
   itemCode: string;
   qty: number;
+}
+
+export interface RejectLine {
+  itemCode: string;
+  qty: number;
+  category: RejectCategoryNo;
+  flightNo: string;
+}
+
+export function freeQtyLines(
+  lines: readonly FreeQtyLine[],
+  isoDate: string
+): InternalUseLine[] {
+  const remark = freeQtyRemark(isoDate);
+  return lines.map(({ itemCode, qty }) => ({
+    itemCode,
+    qty,
+    usageType: FREE_QTY_USAGE_TYPE,
+    remark,
+  }));
+}
+
+export function rejectLines(lines: readonly RejectLine[]): InternalUseLine[] {
+  return lines.map(({ itemCode, qty, category, flightNo }) => {
+    const found = findRejectCategory(category);
+    if (!found) throw new Error(`Kategori reject ${category} tidak dikenal.`);
+    return { itemCode, qty, usageType: found.usageType, remark: flightNo };
+  });
 }
 
 /** Isi satu baris template Internal Use (kolom yang dikosongkan tidak ada). */
@@ -121,14 +181,13 @@ export interface InternalUseOptions {
 }
 
 export function toInternalUseRows(
-  lines: readonly FreeQtyLine[],
+  lines: readonly InternalUseLine[],
   { date, picCode }: InternalUseOptions
 ): InternalUseRow[] {
   if (!findPic(picCode)) {
     throw new Error(`Kode PIC "${picCode}" tidak terdaftar.`);
   }
   const ecount = ecountDate(date);
-  const remark = freeQtyRemark(date);
 
   return lines.map((line, i) => ({
     date: ecount,
@@ -140,73 +199,17 @@ export function toInternalUseRows(
     poCustomer: PO_CUSTOMER_PLACEHOLDER,
     itemCode: line.itemCode,
     qty: line.qty,
-    usageType: USAGE_TYPE,
-    remark,
+    usageType: line.usageType,
+    remark: line.remark,
   }));
 }
 
-/* ---------- validasi body API ---------- */
+/* ---------- jenis menu ---------- */
 
-export interface InternalUseRequest {
-  tanggal: string;
-  picCode: string;
-  rows: FreeQtyLine[];
-}
+export type InternalUseKind = "free" | "reject";
 
-export type ValidationResult =
-  | { ok: true; value: InternalUseRequest }
-  | { ok: false; error: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function validateLine(raw: unknown, index: number): FreeQtyLine | string {
-  const label = `Baris ${index + 1}`;
-  if (!isRecord(raw)) return `${label}: data tidak valid.`;
-
-  const itemCode = typeof raw.itemCode === "string" ? raw.itemCode.trim() : "";
-  if (!itemCode || itemCode.length > ITEM_CODE_MAX_LENGTH) {
-    return `${label}: Item Code wajib diisi (maks. ${ITEM_CODE_MAX_LENGTH} karakter).`;
-  }
-
-  const { qty } = raw;
-  if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0 || qty > QTY_MAX) {
-    return `${label} (${itemCode}): Qty free harus angka lebih dari 0.`;
-  }
-  return { itemCode, qty };
-}
-
-/** Periksa body POST /api/internal-use sebelum file dibuat. */
-export function validateInternalUseRequest(body: unknown): ValidationResult {
-  if (!isRecord(body)) return { ok: false, error: "Body permintaan tidak valid." };
-
-  const tanggal = typeof body.tanggal === "string" ? body.tanggal : "";
-  if (!isValidIsoDate(tanggal)) {
-    return { ok: false, error: "Tanggal tidak valid." };
-  }
-
-  const picCode = typeof body.picCode === "string" ? body.picCode : "";
-  if (!findPic(picCode)) {
-    return { ok: false, error: "PIC belum dipilih atau tidak terdaftar." };
-  }
-
-  if (!Array.isArray(body.rows) || body.rows.length === 0) {
-    return { ok: false, error: "Pilih minimal 1 baris free qty." };
-  }
-  if (body.rows.length > MAX_LINES) {
-    return {
-      ok: false,
-      error: `Terlalu banyak baris (${body.rows.length}); maksimal ${MAX_LINES} per file.`,
-    };
-  }
-
-  const rows: FreeQtyLine[] = [];
-  for (const [i, raw] of body.rows.entries()) {
-    const line = validateLine(raw, i);
-    if (typeof line === "string") return { ok: false, error: line };
-    rows.push(line);
-  }
-
-  return { ok: true, value: { tanggal, picCode, rows } };
-}
+/** Dipakai di nama file: "Internal Use Free Qty 24-11-2026.xlsx". */
+export const KIND_TITLE: Record<InternalUseKind, string> = {
+  free: "Free Qty",
+  reject: "Reject",
+};

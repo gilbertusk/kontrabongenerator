@@ -13,7 +13,7 @@ import {
 } from "@/lib/orderRows";
 import Intro from "./Intro";
 import Help from "./Help";
-import TopNav from "./TopNav";
+import AppTopbar from "./AppTopbar";
 import FileDrop from "./FileDrop";
 import { readApiError, saveResponseAsFile } from "./downloadFile";
 import {
@@ -325,13 +325,7 @@ export default function Page() {
     <>
       <Intro />
       <div className="app">
-      <header className="topbar">
-        <span className="brand">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-bal.png" alt="PT Berlian Artha Label" />
-          Kontrabon Generator
-        </span>
-        <TopNav active="kontrabon" />
+      <AppTopbar active="kontrabon">
         <Help
           context={{
             currency,
@@ -341,8 +335,7 @@ export default function Page() {
             lastError: errorMsg || parseError,
           }}
         />
-        <span className="company">PT Berlian Artha Label</span>
-      </header>
+      </AppTopbar>
 
       <div className="workspace">
         <aside className="sidebar">

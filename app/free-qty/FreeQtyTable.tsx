@@ -1,11 +1,7 @@
 import type { SalesStatusRow } from "@/lib/parseSalesStatus";
 import { slipSeqNo } from "@/lib/internalUse";
-
-const qtyFormat = new Intl.NumberFormat("id-ID");
-
-export function formatQty(n: number): string {
-  return qtyFormat.format(n || 0);
-}
+import { formatQty } from "../_internal-use/format";
+import { slipStartClass } from "../_internal-use/slipStart";
 
 type Props = {
   rows: readonly SalesStatusRow[];
@@ -18,13 +14,7 @@ type Props = {
 };
 
 function rowClass(row: SalesStatusRow, index: number | undefined): string {
-  return [
-    row.freeQty === null ? "off" : "",
-    // garis pemisah di baris pertama tiap slip baru (Seq. No. 2, 3, ...)
-    index !== undefined && index > 0 && slipSeqNo(index) !== slipSeqNo(index - 1)
-      ? "slip-start"
-      : "",
-  ]
+  return [row.freeQty === null ? "off" : "", slipStartClass(index)]
     .filter(Boolean)
     .join(" ");
 }
