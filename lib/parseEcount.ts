@@ -1,4 +1,10 @@
-import * as XLSX from "xlsx";
+import {
+  TIMESTAMP_ROW_RE,
+  normalizeHeader,
+  parseNumberCell,
+  readFirstSheetMatrix,
+  textAt,
+} from "./sheetParsing";
 
 export interface EcountRow {
   /** key unik untuk React list & seleksi (bukan data bisnis) */
@@ -117,13 +123,6 @@ const HEADER_ALIASES: Record<string, string[]> = {
 /** Nilai "Progress Status" yang berarti barisnya sudah masuk kontrabon. */
 const BILLED_STATUSES = ["kontra bon", "kontrabon"];
 
-function normalizeHeader(v: unknown): string {
-  return String(v ?? "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function findHeaderRow(matrix: unknown[][]): number {
   const maxScan = Math.min(matrix.length, 15);
   for (let r = 0; r < maxScan; r++) {
@@ -154,10 +153,6 @@ function buildColumnMap(headerRow: unknown[]): Record<string, number> {
   return map;
 }
 
-// Baris footer ECOUNT biasanya berupa timestamp cetak, misal:
-// "23/09/2026 (Wed) 9:24:04" -- ini bukan baris data, jadi jadi sinyal berhenti.
-const TIMESTAMP_ROW_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*\(\w+\)/;
-
 function parseDateCell(v: unknown): { str: string; value: number } {
   if (v instanceof Date && !isNaN(v.getTime())) {
     const dd = String(v.getDate()).padStart(2, "0");
@@ -181,32 +176,12 @@ function parseDateCell(v: unknown): { str: string; value: number } {
   return { str: s, value: isNaN(parsed) ? NaN : parsed };
 }
 
-function parseNumberCell(v: unknown): number {
-  if (typeof v === "number") return v;
-  if (v == null || v === "") return 0;
-  const cleaned = String(v).replace(/[^0-9.\-]/g, "");
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? 0 : n;
-}
-
-function textAt(row: unknown[], idx: number | undefined): string {
-  if (idx === undefined) return "";
-  return String(row[idx] ?? "").trim();
-}
-
 /**
  * Parse file export ECOUNT (xlsx) jadi daftar invoice terstruktur.
  * `buffer` boleh ArrayBuffer (browser) atau Buffer (Node/serverless).
  */
 export function parseEcountWorkbook(buffer: ArrayBuffer | Buffer): ParseResult {
-  const wb = XLSX.read(buffer, { type: "array", cellDates: true });
-  const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, {
-    header: 1,
-    raw: true,
-    defval: null,
-  });
+  const matrix = readFirstSheetMatrix(buffer);
 
   const warnings: string[] = [];
   const noColumns: AvailableColumns = {

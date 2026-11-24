@@ -89,6 +89,48 @@ body {
   color: var(--amber);
 }
 
+/* Menu utama: label kecil berhuruf kapital; yang aktif digarisbawahi tinta
+   (bukan merah aksen -- merah tetap hanya untuk 3 tempat). */
+.topnav {
+  align-self: stretch;
+  display: flex;
+  gap: 22px;
+  margin-left: 28px;
+}
+
+.topnav a {
+  display: flex;
+  align-items: center;
+  margin-bottom: -1px;
+  padding-top: 2px;
+  border-bottom: 2px solid transparent;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.topnav a:hover {
+  color: var(--ink);
+}
+
+.topnav a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.topnav a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Halaman tanpa tombol Bantuan: nama perusahaan tetap di ujung kanan. */
+.topnav + .company {
+  margin-left: auto;
+}
+
 .workspace {
   flex: 1;
   min-height: 0;
@@ -711,6 +753,64 @@ table.invoices .status-col {
   border-color: var(--rule);
   color: var(--faint);
   cursor: default;
+}
+
+/* ---------- menu Internal Use Free Qty ---------- */
+
+/* Pilihan PIC wajib dipilih: selama kosong, teksnya pudar seperti placeholder. */
+select.unset {
+  color: var(--faint);
+}
+
+/* Daftar nilai yang selalu sama di file ECOUNT (tidak bisa diubah di web). */
+.kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border-top: 1px solid var(--rule);
+}
+
+.kv dt,
+.kv dd {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+}
+
+.kv dt {
+  padding-right: 12px;
+  color: var(--muted);
+}
+
+.kv dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+table.invoices input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+table.invoices .seq {
+  width: 34px;
+  text-align: right;
+  color: var(--faint);
+}
+
+table.invoices .desc.wide {
+  max-width: 320px;
+}
+
+table.invoices td.remark {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Baris pertama slip baru (Seq. No. 2, 3, ...): garis tinta di atasnya. */
+table.invoices tbody tr.slip-start td {
+  border-top: 1px solid var(--ink);
 }
 
 /* ---------- layar sempit ---------- */

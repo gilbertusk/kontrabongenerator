@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseEcountWorkbook, EcountRow, ParseResult } from "@/lib/parseEcount";
 import {
   orderRows,
@@ -13,6 +13,9 @@ import {
 } from "@/lib/orderRows";
 import Intro from "./Intro";
 import Help from "./Help";
+import TopNav from "./TopNav";
+import FileDrop from "./FileDrop";
+import { readApiError, saveResponseAsFile } from "./downloadFile";
 import {
   TEMPLATE_LIST,
   DEFAULT_TEMPLATE,
@@ -65,23 +68,8 @@ function toDocumentDate(inputValue: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : inputValue;
 }
 
-function FileGlyph() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M9.5 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5l-3.5-3.5Z"
-        stroke="currentColor"
-        strokeWidth="1"
-      />
-      <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
-}
-
 export default function Page() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string>("");
-  const [dragging, setDragging] = useState(false);
 
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [parseError, setParseError] = useState<string>("");
@@ -204,18 +192,6 @@ export default function Page() {
     }
   }
 
-  function onFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) handleFile(f);
-  }
-
-  function onDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) handleFile(f);
-  }
-
   function toggleRow(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -330,26 +306,9 @@ export default function Page() {
         }),
       });
 
-      if (!res.ok) {
-        const body: { error?: string } = await res
-          .json()
-          .catch(() => ({} as { error?: string }));
-        throw new Error(body.error || `Gagal generate (status ${res.status}).`);
-      }
+      if (!res.ok) throw new Error(await readApiError(res));
 
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition") || "";
-      const match = disposition.match(/filename="?([^"]+)"?/);
-      const filename = match ? match[1] : `${kontrabonNo}.xlsx`;
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const filename = await saveResponseAsFile(res, `${kontrabonNo}.xlsx`);
 
       setSuccessMsg(
         `Kontrabon "${filename}" dibuat. Periksa dulu isinya sebelum dikirim.`
@@ -372,6 +331,7 @@ export default function Page() {
           <img src="/logo-bal.png" alt="PT Berlian Artha Label" />
           Kontrabon Generator
         </span>
+        <TopNav active="kontrabon" />
         <Help
           context={{
             currency,
@@ -387,43 +347,11 @@ export default function Page() {
       <div className="workspace">
         <aside className="sidebar">
           <section>
-            <div className="block-head">
-              <h2 className="block-title">Sumber Data Excel</h2>
-              {fileName && (
-                <button
-                  className="linkbtn accent"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Ganti
-                </button>
-              )}
-            </div>
-
-            <div
-              className={fileName ? "filebox" : `dropzone${dragging ? " dragging" : ""}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-            >
-              {fileName ? (
-                <>
-                  <FileGlyph />
-                  <span className="name mono">{fileName}</span>
-                </>
-              ) : (
-                <>Klik atau drag file .xlsx ke sini</>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={onFileInputChange}
-              />
-            </div>
+            <FileDrop
+              title="Sumber Data Excel"
+              fileName={fileName}
+              onFile={handleFile}
+            />
 
             {parseError && <p className="helper">{parseError}</p>}
             {!parseError && parseResult && parseResult.warnings.length > 0 && (
