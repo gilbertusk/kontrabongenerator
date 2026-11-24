@@ -6,6 +6,7 @@ const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
       "/api/generate": ["./lib/template/**"],
+      "/api/internal-use": ["./lib/template/**"],
     },
   },
 };

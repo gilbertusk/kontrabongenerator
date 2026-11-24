@@ -3,6 +3,7 @@ import path from "path";
 import JSZip from "jszip";
 import { terbilangUang, Currency } from "./terbilang";
 import { orderRows } from "./orderRows";
+import { escapeXml, numberCell, textCell } from "./sheetXml";
 import { DEFAULT_TEMPLATE, TemplateId } from "./templates";
 
 /**
@@ -257,14 +258,6 @@ function templatePath(spec: TemplateSpec): string {
   return path.join(process.cwd(), "lib", "template", spec.file);
 }
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /** Serial tanggal Excel (hari sejak 1899-12-30). */
 function excelSerial(date: Date): number {
   const midnight = Date.UTC(
@@ -308,23 +301,6 @@ function setCell(
       `<is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
   }
   return sheetXml.slice(0, start) + cell + sheetXml.slice(end);
-}
-
-function textCell(ref: string, style: number, value: string): string {
-  if (!value) return `<c r="${ref}" s="${style}"/>`;
-  return (
-    `<c r="${ref}" s="${style}" t="inlineStr">` +
-    `<is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`
-  );
-}
-
-function numberCell(
-  ref: string,
-  style: number,
-  value: number | null
-): string {
-  if (value === null) return `<c r="${ref}" s="${style}"/>`;
-  return `<c r="${ref}" s="${style}"><v>${value}</v></c>`;
 }
 
 /**
@@ -527,12 +503,12 @@ export async function buildKontrabonFile(
   const warningRow = lastRow + WARNING_GAP;
   const lastUsedRow = warningRow + WARNING_LINES.length;
 
-  sheetXml = sheetXml.replace(
-    "</sheetData>",
+  // replacer fungsi: no. invoice / PO / nama customer yang berisi "$&" dsb.
+  // tidak boleh ditafsirkan sebagai pola pengganti oleh String.replace
+  const tableRows =
     buildDataRows(rows, input.customer, spec, currency) +
-      buildWarningRows(warningRow, styles.headingStyle, styles.bodyStyle) +
-      "</sheetData>"
-  );
+    buildWarningRows(warningRow, styles.headingStyle, styles.bodyStyle);
+  sheetXml = sheetXml.replace("</sheetData>", () => `${tableRows}</sheetData>`);
   sheetXml = sheetXml.replace(
     /<dimension ref="[^"]*"\/>/,
     `<dimension ref="A1:J${lastUsedRow}"/>`

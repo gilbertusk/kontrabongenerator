@@ -17,24 +17,40 @@ Alur pakai:
 
 ```
 app/
-  page.tsx                -> tampilan utama (upload, pilih invoice, form)
+  page.tsx                -> menu Kontrabon (upload, pilih invoice, form)
+  free-qty/page.tsx       -> menu Internal Use Free Qty
+  free-qty/FreeQtyTable.tsx -> tabel item + free qty
+  TopNav.tsx              -> menu di baris atas (Kontrabon | Internal Use Free Qty)
+  FileDrop.tsx            -> kotak upload/drag file .xlsx (dipakai kedua menu)
+  downloadFile.ts         -> simpan file hasil API ke komputer user
   Intro.tsx               -> layar pembuka logo BAL 3D
   Help.tsx                -> asisten chat + lapor masalah ke WhatsApp
   layout.tsx              -> layout dasar + font IBM Plex Sans/Mono
   globals.css             -> seluruh styling aplikasi
-  api/generate/route.ts   -> endpoint yang generate file .xlsx (server-side)
+  api/generate/route.ts   -> endpoint yang generate file kontrabon .xlsx
+  api/internal-use/route.ts -> endpoint yang generate file upload Internal Use
 public/
   logo-bal.png            -> logo perusahaan (dipakai di layar pembuka & kop)
 lib/
-  parseEcount.ts          -> baca & petakan kolom file export ECOUNT
+  parseEcount.ts          -> baca & petakan kolom file export ECOUNT (Sales List)
+  parseSalesStatus.ts     -> baca export ECOUNT "Sales Status Details"
+  freeQty.ts              -> ambil free qty dari kolom Remarks/Ikatan
+  internalUse.ts          -> nilai tetap, PIC, Seq. No., validasi Internal Use
+  buildInternalUse.ts     -> isi template upload Internal Use ECOUNT
+  sheetParsing.ts         -> pembantu baca sel Excel (dipakai kedua parser)
+  sheetXml.ts             -> pembantu tulis XML sheet (dipakai kedua builder)
+  orderRows.ts            -> urutan invoice di kontrabon
+  templates.ts            -> daftar template kontrabon (BAL, JOLIE, JULIUS)
   helpTopics.ts           -> isi jawaban asisten + pencocokan ketikan bebas
   buildKontrabon.ts       -> isi template kontrabon dengan data invoice
   terbilang.ts            -> konversi nominal ke terbilang (Rupiah & USD)
+  *.test.ts               -> tes otomatis (vitest)
   template/
     kontrabon-template.xlsx        -> template BAL Rupiah
     kontrabon-template-usd.xlsx    -> template BAL USD
     kontrabon-template-jolie.xlsx  -> template JOLIE (Luminor, Rupiah)
     kontrabon-template-julius.xlsx -> template JULIUS (Luminor, Rupiah)
+    internal-use-template.xlsx     -> template upload ECOUNT "Internal Use"
 ```
 
 ## Menjalankan di komputer sendiri
@@ -47,6 +63,12 @@ npm run dev
 ```
 
 Buka `http://localhost:3000` di browser.
+
+Tes otomatis (aturan free qty, parser, pembuat file Internal Use):
+
+```bash
+npm test
+```
 
 ## Deploy ke Vercel
 
@@ -303,6 +325,64 @@ mengganti nama kolom dan parser gagal mendeteksi, tambahkan alias nama
 kolom itu di `HEADER_ALIASES` pada file yang sama. `ParseResult.available`
 memberi tahu kolom opsional mana yang benar-benar ada di file, dipakai UI
 untuk memutuskan kolom "Status" dan "No. Kontrabon" ditampilkan atau tidak.
+
+## Menu Internal Use Free Qty
+
+Menu kedua (`/free-qty`) membuat file upload ECOUNT **Internal Use** untuk
+free qty, dari export ECOUNT **Sales Status Details**.
+
+Alur pakai:
+
+1. Upload file export "Sales Status Details" (`.xlsx`).
+2. Website membaca semua baris item dan menghitung free qty dari kolom
+   **Remarks/Ikatan**. Baris yang punya free langsung dicentang.
+3. Isi **Tanggal Input** dan pilih **PIC** (wajib dipilih).
+4. Klik **Generate & Download Internal Use**, lalu upload file itu ke ECOUNT.
+
+### Cara membaca free qty dari Remarks/Ikatan
+
+Aturannya sama dengan rumus Excel kolom "Quantity Free" yang dipakai
+sebelumnya (sudah dicocokkan ke 376 baris file 30/09/2026, hasilnya sama
+semua). Lihat `lib/freeQty.ts`.
+
+| Remarks/Ikatan                            | Free | Keterangan |
+| ----------------------------------------- | ---- | ---------- |
+| `300-1 F200 (28X500+1X21)`                | 200  | |
+| `300-15 F25 (1X300) L2F125 (2X500+1X420)` | 25   | hanya F yang pertama |
+| `400-1 L1F176 L2F176(1X500+1X324)`        | 176  | layer 1 dihitung, layer 2 tidak |
+| `400-4 D3 F32(2X500+1X71)`                | 32   | D3 diabaikan |
+| `200-5 (25X250)`, `D001 [...]`, kosong    | -    | tidak ada free, tidak ikut |
+| `200-6 FR20 (...)`                        | -    | "FR" bukan penanda free |
+
+Baris tanpa free tetap tampil (redup) supaya bisa dicek, tapi tidak bisa
+dicentang.
+
+### Isi file upload Internal Use
+
+Template-nya adalah file asli dari ECOUNT (`internal-use-template.xlsx`,
+sheet "1_New Int. Use", 24 kolom). Generator hanya menambah baris data
+mulai baris 2; header dan komentar petunjuk kolom dari ECOUNT tetap ada.
+
+| Kolom             | Isi |
+| ----------------- | --- |
+| Date              | Tanggal Input yang dipilih di web, format `DDMMYYYY` |
+| Seq. No.          | baris ke-1..1000 = 1, ke-1001..2000 = 2, dst. |
+| Location-Out      | `00009` |
+| PIC               | dipilih di web: Fajri `58`, Adi Kusuma `157`, Irfan `151` |
+| Gross weight      | `0` |
+| Koli Barang       | `0` |
+| No. PO Customer   | `-` |
+| Item Code         | Item Code dari Sales Status Details |
+| Qty               | free qty |
+| Usage Type        | `00026` |
+| Remark            | `QTY FREE DD - MM - YYYY` (Tanggal Input) |
+| kolom lainnya     | dikosongkan (Item Name dsb. diisi ECOUNT dari Item Code) |
+
+Nilai tetap & daftar PIC ada di `lib/internalUse.ts`. Kalau ada PIC baru,
+cukup tambah satu baris di `PIC_LIST`. Kalau ECOUNT mengganti template,
+taruh file barunya di `lib/template/internal-use-template.xlsx`; generator
+memeriksa judul kolom yang diisi (Date, Seq. No., Location-Out, ...) dan
+menolak membuat file kalau posisinya bergeser.
 
 ## Catatan tentang terbilang
 
