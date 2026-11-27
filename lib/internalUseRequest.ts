@@ -10,8 +10,8 @@ import {
 
 /**
  * Validasi body POST /api/internal-use. Browser hanya mengirim data item
- * (kode, qty, kategori reject, flight number); kode Usage Type dan Remark
- * ditentukan di server supaya tidak bisa diisi sembarangan.
+ * (kode, qty, flight number, kategori reject); kode Usage Type ditentukan di
+ * server supaya tidak bisa diisi sembarangan, Remark = flight number.
  */
 
 /** Batas panjang Item Code di ECOUNT. */
@@ -41,9 +41,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 interface ItemFields {
   itemCode: string;
   qty: number;
+  /** jadi Remark; boleh kosong */
+  flightNo: string;
 }
 
-/** Item Code + qty yang sama-sama wajib di kedua menu; string = pesan error. */
+/** Item Code, qty & Flight Number yang sama di kedua menu; string = pesan error. */
 function validateItem(raw: unknown, label: string): ItemFields | string {
   if (!isRecord(raw)) return `${label}: data tidak valid.`;
 
@@ -56,17 +58,22 @@ function validateItem(raw: unknown, label: string): ItemFields | string {
   if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0 || qty > QTY_MAX) {
     return `${label} (${itemCode}): Qty harus angka lebih dari 0.`;
   }
-  return { itemCode, qty };
+
+  const flightNo = typeof raw.flightNo === "string" ? raw.flightNo.trim() : "";
+  if (flightNo.length > REMARK_MAX_LENGTH) {
+    return `${label} (${itemCode}): Flight Number maks. ${REMARK_MAX_LENGTH} karakter.`;
+  }
+  return { itemCode, qty, flightNo };
 }
 
-function validateFreeRows(rows: readonly unknown[], tanggal: string) {
+function validateFreeRows(rows: readonly unknown[]) {
   const items: ItemFields[] = [];
   for (const [i, raw] of rows.entries()) {
     const item = validateItem(raw, `Baris ${i + 1}`);
     if (typeof item === "string") return item;
     items.push(item);
   }
-  return freeQtyLines(items, tanggal);
+  return freeQtyLines(items);
 }
 
 function validateRejectRows(rows: readonly unknown[]) {
@@ -76,15 +83,10 @@ function validateRejectRows(rows: readonly unknown[]) {
     const item = validateItem(raw, label);
     if (typeof item === "string") return item;
 
-    const record = raw as Record<string, unknown>;
-    const category = findRejectCategory(record.category);
+    const category = findRejectCategory((raw as Record<string, unknown>).category);
     if (!category) return `${label} (${item.itemCode}): kategori reject harus 1-4.`;
 
-    const flightNo = typeof record.flightNo === "string" ? record.flightNo.trim() : "";
-    if (flightNo.length > REMARK_MAX_LENGTH) {
-      return `${label} (${item.itemCode}): Flight Number maks. ${REMARK_MAX_LENGTH} karakter.`;
-    }
-    lines.push({ ...item, category: category.no, flightNo });
+    lines.push({ ...item, category: category.no });
   }
   return rejectLines(lines);
 }
@@ -116,8 +118,7 @@ export function validateInternalUseRequest(body: unknown): ValidationResult {
     };
   }
 
-  const lines =
-    kind === "free" ? validateFreeRows(body.rows, tanggal) : validateRejectRows(body.rows);
+  const lines = kind === "free" ? validateFreeRows(body.rows) : validateRejectRows(body.rows);
   if (typeof lines === "string") return { ok: false, error: lines };
 
   return { ok: true, value: { kind, tanggal, picCode, lines } };

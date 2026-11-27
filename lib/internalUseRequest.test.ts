@@ -4,7 +4,7 @@ import { validateInternalUseRequest } from "./internalUseRequest";
 const free = {
   tanggal: "2026-11-24",
   picCode: "58",
-  rows: [{ itemCode: "FG002784", qty: 200 }],
+  rows: [{ itemCode: "FG002784", qty: 200, flightNo: "HNM11/0661" }],
 };
 
 const reject = {
@@ -18,10 +18,10 @@ const reject = {
 };
 
 describe("validateInternalUseRequest - free qty", () => {
-  it("body tanpa kind dianggap free qty (kompatibel dengan versi lama)", () => {
+  it("body tanpa kind dianggap free qty; Remark = Flight Number (dirapikan)", () => {
     const result = validateInternalUseRequest({
       ...free,
-      rows: [{ itemCode: "  FG002784 ", qty: 200 }],
+      rows: [{ itemCode: "  FG002784 ", qty: 200, flightNo: " HNM11/0661 " }],
     });
     expect(result).toEqual({
       ok: true,
@@ -29,10 +29,21 @@ describe("validateInternalUseRequest - free qty", () => {
         kind: "free",
         tanggal: "2026-11-24",
         picCode: "58",
-        lines: [
-          { itemCode: "FG002784", qty: 200, usageType: "00026", remark: "QTY FREE 24 - 11 - 2026" },
-        ],
+        lines: [{ itemCode: "FG002784", qty: 200, usageType: "00026", remark: "HNM11/0661" }],
       },
+    });
+  });
+
+  it("Flight Number kosong tetap boleh (Remark kosong)", () => {
+    const result = validateInternalUseRequest({
+      ...free,
+      rows: [{ itemCode: "FG1", qty: 5 }],
+    });
+    expect(result.ok && result.value.lines[0]).toEqual({
+      itemCode: "FG1",
+      qty: 5,
+      usageType: "00026",
+      remark: "",
     });
   });
 
@@ -50,6 +61,7 @@ describe("validateInternalUseRequest - free qty", () => {
     [{ ...free, rows: [{ itemCode: "FG1", qty: -5 }] }, /Qty/],
     [{ ...free, rows: [{ itemCode: "FG1", qty: "10" }] }, /Qty/],
     [{ ...free, rows: [{ itemCode: "FG1", qty: Infinity }] }, /Qty/],
+    [{ ...free, rows: [{ itemCode: "FG1", qty: 1, flightNo: "X".repeat(201) }] }, /Flight Number/],
   ])("menolak body %#", (body, message) => {
     const result = validateInternalUseRequest(body);
     expect(result.ok).toBe(false);

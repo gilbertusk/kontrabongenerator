@@ -13,9 +13,11 @@ function sanitizeFilename(name: string): string {
  * POST -> file .xlsx template upload ECOUNT "Internal Use" yang sudah terisi.
  *
  * Free Qty : { kind?: "free", tanggal: "YYYY-MM-DD", picCode,
- *              rows: [{ itemCode, qty }] }
+ *              rows: [{ itemCode, qty, flightNo }] }
  * Reject   : { kind: "reject", tanggal, picCode,
  *              rows: [{ itemCode, qty, category: 1-4, flightNo }] }
+ *
+ * Remark di file = flightNo (boleh kosong).
  */
 export async function POST(req: NextRequest) {
   let body: unknown;

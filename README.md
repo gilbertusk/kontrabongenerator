@@ -382,7 +382,7 @@ mulai baris 2; header dan komentar petunjuk kolom dari ECOUNT tetap ada.
 | Item Code         | Item Code dari Sales Status Details |
 | Qty               | free qty |
 | Usage Type        | `00026` |
-| Remark            | `QTY FREE DD - MM - YYYY` (Tanggal Input) |
+| Remark            | Flight Number (kolom "FLIGHT NO.") dari Sales Status Details; kalau kosong, Remark juga kosong |
 | kolom lainnya     | dikosongkan (Item Name dsb. diisi ECOUNT dari Item Code) |
 
 Nilai tetap & daftar PIC ada di `lib/internalUse.ts`. Kalau ada PIC baru,
@@ -395,8 +395,8 @@ menolak membuat file kalau posisinya bergeser.
 
 Menu ketiga (`/reject`) membuat file upload ECOUNT **Internal Use** untuk
 barang reject, dari export ECOUNT **Goods Receipt Status**. Template dan
-kolomnya sama dengan Free Qty; yang berbeda hanya **Usage Type** dan
-**Remark**.
+kolomnya sama dengan Free Qty (Remark juga = Flight Number); yang berbeda
+hanya **Usage Type**.
 
 Alur pakai:
 
