@@ -7,7 +7,6 @@ import {
   findPic,
   findRejectCategory,
   freeQtyLines,
-  freeQtyRemark,
   rejectLines,
   slipSeqNo,
   toInternalUseRows,
@@ -28,13 +27,6 @@ describe("ecountDate", () => {
 describe("fileNameDate", () => {
   it("memakai format DD-MM-YYYY", () => {
     expect(fileNameDate("2026-11-24")).toBe("24-11-2026");
-  });
-});
-
-describe("freeQtyRemark", () => {
-  it("mengikuti format QTY FREE DD - MM - YYYY", () => {
-    expect(freeQtyRemark("2026-11-12")).toBe("QTY FREE 12 - 11 - 2026");
-    expect(freeQtyRemark("2026-03-07")).toBe("QTY FREE 07 - 03 - 2026");
   });
 });
 
@@ -73,14 +65,15 @@ describe("REJECT_CATEGORIES", () => {
 });
 
 describe("freeQtyLines", () => {
-  it("Usage Type 00026 dan Remark QTY FREE + tanggal input", () => {
-    expect(freeQtyLines([{ itemCode: "FG1", qty: 200 }], "2026-11-24")).toEqual([
-      {
-        itemCode: "FG1",
-        qty: 200,
-        usageType: "00026",
-        remark: "QTY FREE 24 - 11 - 2026",
-      },
+  it("Usage Type 00026 dan Remark = Flight Number", () => {
+    expect(
+      freeQtyLines([
+        { itemCode: "FG1", qty: 200, flightNo: "HNM11/0661" },
+        { itemCode: "FG2", qty: 25, flightNo: "" },
+      ])
+    ).toEqual([
+      { itemCode: "FG1", qty: 200, usageType: "00026", remark: "HNM11/0661" },
+      { itemCode: "FG2", qty: 25, usageType: "00026", remark: "" },
     ]);
   });
 });
@@ -100,13 +93,10 @@ describe("rejectLines", () => {
 });
 
 describe("toInternalUseRows", () => {
-  const lines = freeQtyLines(
-    [
-      { itemCode: "FG002784", qty: 200 },
-      { itemCode: "FG009165", qty: 10 },
-    ],
-    "2026-11-24"
-  );
+  const lines = freeQtyLines([
+    { itemCode: "FG002784", qty: 200, flightNo: "HNM11/0661" },
+    { itemCode: "FG009165", qty: 10, flightNo: "HNM11/0661" },
+  ]);
 
   it("mengisi kolom wajib dengan nilai tetap + PIC + tanggal pilihan", () => {
     const rows = toInternalUseRows(lines, { date: "2026-11-24", picCode: "157" });
@@ -122,7 +112,7 @@ describe("toInternalUseRows", () => {
         itemCode: "FG002784",
         qty: 200,
         usageType: "00026",
-        remark: "QTY FREE 24 - 11 - 2026",
+        remark: "HNM11/0661",
       },
       expect.objectContaining({ itemCode: "FG009165", qty: 10, seqNo: 1 }),
     ]);

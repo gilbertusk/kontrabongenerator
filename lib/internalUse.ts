@@ -10,9 +10,10 @@
  * - Gross weight 0, Koli Barang 0, No. PO Customer "-"
  * - 1 slip (Seq. No.) maksimal 1000 baris
  *
- * Yang berbeda per menu hanya Usage Type dan Remark:
- * - Free Qty : Usage Type 00026, Remark "QTY FREE DD - MM - YYYY"
- * - Reject   : Usage Type 00035..00038 (Reject 1..4), Remark = Flight Number
+ * Remark di kedua menu = Flight Number dari baris laporan. Yang berbeda per
+ * menu hanya Usage Type:
+ * - Free Qty : 00026
+ * - Reject   : 00035..00038 (Reject 1..4)
  */
 
 export const LOCATION_OUT = "00009";
@@ -105,12 +106,6 @@ export function fileNameDate(isoDate: string): string {
   return `${dd}-${mm}-${yyyy}`;
 }
 
-/** Remark Free Qty: "QTY FREE 24 - 11 - 2026". */
-export function freeQtyRemark(isoDate: string): string {
-  const { dd, mm, yyyy } = requireDate(isoDate);
-  return `QTY FREE ${dd} - ${mm} - ${yyyy}`;
-}
-
 /** Seq. No. untuk baris ke-`index` (mulai 0). */
 export function slipSeqNo(index: number): number {
   return Math.floor(index / ROWS_PER_SLIP) + 1;
@@ -129,6 +124,8 @@ export interface InternalUseLine {
 export interface FreeQtyLine {
   itemCode: string;
   qty: number;
+  /** ditulis ke Remark; boleh kosong */
+  flightNo: string;
 }
 
 export interface RejectLine {
@@ -138,16 +135,12 @@ export interface RejectLine {
   flightNo: string;
 }
 
-export function freeQtyLines(
-  lines: readonly FreeQtyLine[],
-  isoDate: string
-): InternalUseLine[] {
-  const remark = freeQtyRemark(isoDate);
-  return lines.map(({ itemCode, qty }) => ({
+export function freeQtyLines(lines: readonly FreeQtyLine[]): InternalUseLine[] {
+  return lines.map(({ itemCode, qty, flightNo }) => ({
     itemCode,
     qty,
     usageType: FREE_QTY_USAGE_TYPE,
-    remark,
+    remark: flightNo,
   }));
 }
 

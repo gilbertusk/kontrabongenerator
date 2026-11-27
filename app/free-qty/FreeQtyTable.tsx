@@ -46,6 +46,7 @@ export default function FreeQtyTable({
               Seq
             </th>
             <th>No. SJ</th>
+            <th title="Ditulis ke kolom Remark">Flight Number</th>
             <th>Item Code</th>
             <th className="num">Qty</th>
             <th>Remarks/Ikatan</th>
@@ -78,6 +79,8 @@ export default function FreeQtyTable({
                   {index === undefined ? "" : slipSeqNo(index)}
                 </td>
                 <td className="mono">{r.sjNo}</td>
+                {/* apa adanya: kalau kosong, Remark di file juga kosong */}
+                <td className="mono">{r.flightNo}</td>
                 <td className="mono">{r.itemCode}</td>
                 <td className="num mono">{formatQty(r.qty)}</td>
                 <td className="mono remark">{r.remark || "-"}</td>

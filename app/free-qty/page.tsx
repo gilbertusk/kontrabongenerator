@@ -6,7 +6,7 @@ import {
   SalesStatusParseResult,
   SalesStatusRow,
 } from "@/lib/parseSalesStatus";
-import { FREE_QTY_USAGE_TYPE, freeQtyRemark, isValidIsoDate, slipSeqNo } from "@/lib/internalUse";
+import { FREE_QTY_USAGE_TYPE, slipSeqNo } from "@/lib/internalUse";
 import Intro from "../Intro";
 import AppTopbar from "../AppTopbar";
 import FileDrop from "../FileDrop";
@@ -23,6 +23,12 @@ import FreeQtyTable from "./FreeQtyTable";
 function hasFree(row: SalesStatusRow): boolean {
   return row.freeQty !== null;
 }
+
+/** Usage Type + Remark, untuk daftar Nilai Tetap. */
+const FIXED_VALUES = [
+  { label: "Usage Type", value: FREE_QTY_USAGE_TYPE },
+  { label: "Remark", value: "Flight Number" },
+];
 
 export default function FreeQtyPage() {
   const [fileName, setFileName] = useState("");
@@ -86,14 +92,17 @@ export default function FreeQtyPage() {
         kind: "free",
         tanggal: form.tanggal,
         picCode: form.picCode,
-        rows: selectedRows.map((r) => ({ itemCode: r.itemCode, qty: r.freeQty })),
+        rows: selectedRows.map((r) => ({
+          itemCode: r.itemCode,
+          qty: r.freeQty,
+          flightNo: r.flightNo,
+        })),
       },
       "Internal Use Free Qty.xlsx"
     );
   }
 
   const sidebarMessage = parseError || parseResult?.warnings.join(" ") || "";
-  const remarkPreview = isValidIsoDate(form.tanggal) ? freeQtyRemark(form.tanggal) : "-";
 
   return (
     <>
@@ -115,12 +124,7 @@ export default function FreeQtyPage() {
               onPicChange={form.setPicCode}
             />
 
-            <FixedValues
-              extra={[
-                { label: "Usage Type", value: FREE_QTY_USAGE_TYPE },
-                { label: "Remark", value: remarkPreview },
-              ]}
-            />
+            <FixedValues extra={FIXED_VALUES} />
 
             <SummaryCallout
               blocker={blocker}

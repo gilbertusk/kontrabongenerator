@@ -6,8 +6,12 @@ import { FreeQtyLine, freeQtyLines, rejectLines } from "./internalUse";
 
 const TANGGAL = "2026-11-24";
 
-function freeInput(picCode: string, rows: FreeQtyLine[]) {
-  return { kind: "free" as const, tanggal: TANGGAL, picCode, lines: freeQtyLines(rows, TANGGAL) };
+/** Baris free qty; Flight Number dikosongkan kalau tes tidak memerlukannya. */
+type FreeRow = Omit<FreeQtyLine, "flightNo"> & { flightNo?: string };
+
+function freeInput(picCode: string, rows: FreeRow[]) {
+  const lines = freeQtyLines(rows.map((r) => ({ ...r, flightNo: r.flightNo ?? "" })));
+  return { kind: "free" as const, tanggal: TANGGAL, picCode, lines };
 }
 
 function readBack(buffer: Buffer) {
@@ -24,8 +28,8 @@ describe("buildInternalUseFile", () => {
   it("mengisi template ECOUNT mulai baris 2 dengan kolom yang benar", async () => {
     const { buffer, filename } = await buildInternalUseFile(
       freeInput("58", [
-        { itemCode: "FG002784", qty: 200 },
-        { itemCode: "FG009165", qty: 10 },
+        { itemCode: "FG002784", qty: 200, flightNo: "HNM11/0661" },
+        { itemCode: "FG009165", qty: 10, flightNo: "HNM11/0661" },
       ])
     );
 
@@ -50,7 +54,7 @@ describe("buildInternalUseFile", () => {
     expect(cell("S2")).toBeUndefined();
     expect(cell("U2")).toBe(200);
     expect(cell("W2")).toBe("00026");
-    expect(cell("X2")).toBe("QTY FREE 24 - 11 - 2026");
+    expect(cell("X2")).toBe("HNM11/0661");
 
     expect(cell("R3")).toBe("FG009165");
     expect(cell("U3")).toBe(10);
